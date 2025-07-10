@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aplikasi Cetak Dokumen</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- PapaParse CDN for CSV parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         /* Mengatur font default untuk seluruh body */
@@ -67,6 +64,7 @@
                 text-align: left;
                 color: #000; /* Memastikan teks tabel berwarna hitam */
                 word-wrap: break-word; /* Mencegah teks meluap */
+                word-break: break-all; /* Memastikan teks selalu terpecah dan wrap */
             }
             /* Gaya header tabel */
             th {
@@ -78,10 +76,8 @@
 <body>
     <div id="root"></div>
 
-    <!-- CDN React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel untuk transformasi JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
@@ -499,7 +495,13 @@
                     .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
                     h1, h2, h3 { color: #333; }
                     table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th, td {
+                        border: 1px solid #ddd;
+                        padding: 4px;
+                        text-align: left;
+                        word-wrap: break-word; /* Mencegah teks meluap */
+                        word-break: break-all; /* Memastikan teks selalu terpecah dan wrap */
+                    }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
@@ -708,7 +710,13 @@
                     .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
                     h1, h2, h3 { color: #333; }
                     table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th, td {
+                        border: 1px solid #ddd;
+                        padding: 4px;
+                        text-align: left;
+                        word-wrap: break-word; /* Mencegah teks meluap */
+                        word-break: break-all; /* Memastikan teks selalu terpecah dan wrap */
+                    }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
@@ -797,6 +805,7 @@
                                         <th class="py-2 px-4">Tanggal</th>
                                         <th className="py-2 px-4">Pelanggan</th>
                                         <th className="py-2 px-4">Nilai</th>
+                                        <th className="py-2 px-4">Cek</th> {/* Kolom "Cek" ditambahkan di sini */}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -806,6 +815,7 @@
                                             <td className="py-2 px-4">{formatDate(inv.tanggal)}</td>
                                             <td className="py-2 px-4">{inv.pelanggan}</td>
                                             <td className="py-2 px-4">Rp {formatNumberWithoutDecimal(inv.nilai)}</td>
+                                            <td className="py-2 px-4"></td> {/* Sel kosong untuk kolom "Cek" */}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -948,7 +958,13 @@
                     .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
                     h1, h2, h3 { color: #333; }
                     table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th, td {
+                        border: 1px solid #ddd;
+                        padding: 4px;
+                        text-align: left;
+                        word-wrap: break-word; /* Mencegah teks meluap */
+                        word-break: break-all; /* Memastikan teks selalu terpecah dan wrap */
+                    }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
@@ -1125,6 +1141,7 @@
                                     <th class="py-2 px-4">Tanggal</th>
                                     <th class="py-2 px-4">Pelanggan</th>
                                     <th class="py-2 px-4">Nilai</th>
+                                    <th class="py-2 px-4">Cek</th> {/* Kolom "Cek" di riwayat cetak */}
                                 </tr>
                             </thead>
                             <tbody>
@@ -1134,6 +1151,7 @@
                                         <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
                                         <td class="py-2 px-4">${inv.pelanggan}</td>
                                         <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                        <td class="py-2 px-4"></td> {/* Sel kosong untuk kolom "Cek" di riwayat cetak */}
                                     </tr>
                                 `).join('')}
                             </tbody>
