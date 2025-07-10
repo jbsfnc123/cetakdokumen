@@ -278,6 +278,7 @@
                                 value={selectedCabang}
                                 onChange={(e) => setSelectedCabang(e.target.value)}
                             >
+                                <option value="">-- Pilih Cabang --</option>
                                 {uniqueCabang.map((cabang, index) => (
                                     <option key={index} value={cabang}>{cabang}</option>
                                 ))}
@@ -439,15 +440,15 @@
                     <table class="min-w-full bg-white text-gray-800">
                         <thead>
                             <tr>
-                                <th class="py-2 px-4">Invoice</th>
-                                <th class="py-2 px-4">Tanggal</th>
-                                <th class="py-2 px-4">Jatuh Tempo</th>
-                                <th class="py-2 px-4">Pelanggan</th>
-                                <th class="py-2 px-4">Nilai</th>
-                                <th class="py-2 px-4">Pembayaran</th>
-                                <th class="py-2 px-4">Sisa</th>
-                                <th class="py-2 px-4">Perintah</th>
-                                <th class="py-2 px-4">Keterangan</th>
+                                <th class="py-2 px-4" style="width: 12%;">Invoice</th>
+                                <th class="py-2 px-4" style="width: 8%;">Tanggal</th>
+                                <th class="py-2 px-4" style="width: 8%;">Jatuh Tempo</th>
+                                <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
+                                <th class="py-2 px-4" style="width: 10%;">Nilai</th>
+                                <th class="py-2 px-4" style="width: 10%;">Pembayaran</th>
+                                <th class="py-2 px-4" style="width: 10%;">Sisa</th>
+                                <th class="py-2 px-4" style="width: 8%;">Perintah</th>
+                                <th class="py-2 px-4" style="width: 14%;">Keterangan</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -503,6 +504,16 @@
                         word-break: break-all; /* Memastikan teks selalu terpecah dan wrap */
                     }
                     th { background-color: #f2f2f2; }
+                    /* Specific column widths for Surat Jalan Tagihan */
+                    th:nth-child(1) { width: 12%; } /* Invoice */
+                    th:nth-child(2) { width: 8%; }  /* Tanggal */
+                    th:nth-child(3) { width: 8%; }  /* Jatuh Tempo */
+                    th:nth-child(4) { width: 20%; } /* Pelanggan */
+                    th:nth-child(5) { width: 10%; } /* Nilai */
+                    th:nth-child(6) { width: 10%; } /* Pembayaran */
+                    th:nth-child(7) { width: 10%; } /* Sisa */
+                    th:nth-child(8) { width: 8%; }  /* Perintah */
+                    th:nth-child(9) { width: 14%; } /* Keterangan */
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
                     .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
@@ -718,6 +729,12 @@
                         word-break: break-all; /* Memastikan teks selalu terpecah dan wrap */
                     }
                     th { background-color: #f2f2f2; }
+                    /* Specific column widths for Pengajuan Faktur Pajak */
+                    th:nth-child(1) { width: 20%; } /* Invoice */
+                    th:nth-child(2) { width: 10%; } /* Tanggal */
+                    th:nth-child(3) { width: 40%; } /* Pelanggan */
+                    th:nth-child(4) { width: 20%; } /* Nilai */
+                    th:nth-child(5) { width: 10%; } /* Cek */
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
                     .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
@@ -801,36 +818,36 @@
                             <table className="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th className="py-2 px-4">Invoice</th>
-                                        <th class="py-2 px-4">Tanggal</th>
-                                        <th className="py-2 px-4">Pelanggan</th>
-                                        <th className="py-2 px-4">Nilai</th>
-                                        <th className="py-2 px-4">Cek</th> {/* Kolom "Cek" ditambahkan di sini */}
+                                        <th class="py-2 px-4" style="width: 20%;">Invoice</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                        <th class="py-2 px-4" style="width: 40%;">Pelanggan</th>
+                                        <th class="py-2 px-4" style="width: 20%;">Nilai</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Cek</th> {/* Kolom "Cek" ditambahkan di sini */}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {selectedInvoices.map((inv, index) => (
                                         <tr key={index}>
-                                            <td className="py-2 px-4">{inv.invoice}</td>
-                                            <td className="py-2 px-4">{formatDate(inv.tanggal)}</td>
-                                            <td className="py-2 px-4">{inv.pelanggan}</td>
-                                            <td className="py-2 px-4">Rp {formatNumberWithoutDecimal(inv.nilai)}</td>
-                                            <td className="py-2 px-4"></td> {/* Sel kosong untuk kolom "Cek" */}
+                                            <td class="py-2 px-4">${inv.invoice}</td>
+                                            <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                            <td class="py-2 px-4">${inv.pelanggan}</td>
+                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                            <td class="py-2 px-4"></td> {/* Sel kosong untuk kolom "Cek" */}
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
 
-                            <div className="signature-section">
-                                <div className="signature-box">
-                                    <p className="text-lg font-medium">Yang Mengajukan,</p>
-                                    <div className="signature-line"></div>
-                                    <p className="mt-2">({giverSignature})</p>
+                            <div class="signature-section">
+                                <div class="signature-box">
+                                    <p class="text-lg font-medium">Yang Mengajukan,</p>
+                                    <div class="signature-line"></div>
+                                    <p class="mt-2">(${giverSignature})</p>
                                 </div>
-                                <div className="signature-box">
-                                    <p className="text-lg font-medium">Yang Menerima,</p>
-                                    <div className="signature-line"></div>
-                                    <p className="mt-2">({receiverSignature})</p>
+                                <div class="signature-box">
+                                    <p class="text-lg font-medium">Yang Menerima,</p>
+                                    <div class="signature-line"></div>
+                                    <p class="mt-2">(${receiverSignature})</p>
                                 </div>
                             </div>
                         </div>
@@ -909,17 +926,17 @@
                     printContentHtml += `<table class="min-w-full bg-white text-gray-800">
                         <thead>
                             <tr>
-                                <th class="py-2 px-4">Invoice</th>
-                                <th class="py-2 px-4">Tanggal</th>
-                                <th class="py-2 px-4">Jatuh Tempo</th>
-                                <th class="py-2 px-4">Pelanggan</th>
-                                <th class="py-2 px-4">Nilai</th>
-                                <th class="py-2 px-4">Keterangan</th>
+                                <th class="py-2 px-4" style="width: 15%;">Invoice</th>
+                                <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
+                                <th class="py-2 px-4" style="width: 30%;">Pelanggan</th>
+                                <th class="py-2 px-4" style="width: 15%;">Nilai</th>
+                                <th class="py-2 px-4" style="width: 20%;">Keterangan</th>
                             </tr>
                         </thead>
                         <tbody>`;
                     groupedByPelanggan[pelangganName].forEach(inv => {
-                        printContentHtml += `
+                        contentHtml += `
                             <tr>
                                 <td class="py-2 px-4">${inv.invoice}</td>
                                 <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
@@ -966,6 +983,13 @@
                         word-break: break-all; /* Memastikan teks selalu terpecah dan wrap */
                     }
                     th { background-color: #f2f2f2; }
+                    /* Specific column widths for Tanda Terima */
+                    th:nth-child(1) { width: 15%; } /* Invoice */
+                    th:nth-child(2) { width: 10%; } /* Tanggal */
+                    th:nth-child(3) { width: 10%; } /* Jatuh Tempo */
+                    th:nth-child(4) { width: 30%; } /* Pelanggan */
+                    th:nth-child(5) { width: 15%; } /* Nilai */
+                    th:nth-child(6) { width: 20%; } /* Keterangan */
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
                     .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
@@ -1072,12 +1096,12 @@
                             contentHtml += `<table class="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th class="py-2 px-4">Invoice</th>
-                                        <th class="py-2 px-4">Tanggal</th>
-                                        <th class="py-2 px-4">Jatuh Tempo</th>
-                                        <th class="py-2 px-4">Pelanggan</th>
-                                        <th class="py-2 px-4">Nilai</th>
-                                        <th class="py-2 px-4">Keterangan</th>
+                                        <th class="py-2 px-4" style="width: 15%;">Invoice</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
+                                        <th class="py-2 px-4" style="width: 30%;">Pelanggan</th>
+                                        <th class="py-2 px-4" style="width: 15%;">Nilai</th>
+                                        <th class="py-2 px-4" style="width: 20%;">Keterangan</th>
                                     </tr>
                                 </thead>
                                 <tbody>`;
@@ -1102,15 +1126,15 @@
                             <table class="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th class="py-2 px-4">Invoice</th>
-                                        <th class="py-2 px-4">Tanggal</th>
-                                        <th class="py-2 px-4">Jatuh Tempo</th>
-                                        <th class="py-2 px-4">Pelanggan</th>
-                                        <th class="py-2 px-4">Nilai</th>
-                                        <th class="py-2 px-4">Pembayaran</th>
-                                        <th class="py-2 px-4">Sisa</th>
-                                        <th class="py-2 px-4">Perintah</th>
-                                        <th class="py-2 px-4">Keterangan</th>
+                                        <th class="py-2 px-4" style="width: 12%;">Invoice</th>
+                                        <th class="py-2 px-4" style="width: 8%;">Tanggal</th>
+                                        <th class="py-2 px-4" style="width: 8%;">Jatuh Tempo</th>
+                                        <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Nilai</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Pembayaran</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Sisa</th>
+                                        <th class="py-2 px-4" style="width: 8%;">Perintah</th>
+                                        <th class="py-2 px-4" style="width: 14%;">Keterangan</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1137,11 +1161,11 @@
                         <table class="min-w-full bg-white text-gray-800">
                             <thead>
                                 <tr>
-                                    <th class="py-2 px-4">Invoice</th>
-                                    <th class="py-2 px-4">Tanggal</th>
-                                    <th class="py-2 px-4">Pelanggan</th>
-                                    <th class="py-2 px-4">Nilai</th>
-                                    <th class="py-2 px-4">Cek</th> {/* Kolom "Cek" di riwayat cetak */}
+                                    <th class="py-2 px-4" style="width: 20%;">Invoice</th>
+                                    <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                    <th class="py-2 px-4" style="width: 40%;">Pelanggan</th>
+                                    <th class="py-2 px-4" style="width: 20%;">Nilai</th>
+                                    <th class="py-2 px-4" style="width: 10%;">Cek</th> {/* Kolom "Cek" di riwayat cetak */}
                                 </tr>
                             </thead>
                             <tbody>
