@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aplikasi Cetak Dokumen</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PapaParse CDN for CSV parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         /* Mengatur font default untuk seluruh body */
@@ -75,8 +78,10 @@
 <body>
     <div id="root"></div>
 
+    <!-- CDN React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel untuk transformasi JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel">
@@ -542,7 +547,7 @@
                                         onClick={() => handleSelectInvoice(inv)}
                                     >
                                         <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                        <p className="text-sm text-gray-400">{inv.pelanggan} - Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
+                                        <p className="text-sm text-gray-400">Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
                                     </div>
                                 ))}
                             </div>
@@ -558,7 +563,8 @@
                                     <div className="flex items-center justify-between mb-2">
                                         <div>
                                             <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                            <p className="text-sm text-gray-400">{inv.pelanggan} - Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
+                                            <p className="text-sm text-gray-400">Pelanggan: {inv.pelanggan}</p> {/* Added pelanggan */}
+                                            <p className="text-sm text-gray-400">Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
                                             {/* Sales removed from here */}
                                         </div>
                                         <button
@@ -703,7 +709,6 @@
                 });
 
                 // Siapkan konten untuk dicetak
-                const printContent = printAreaRef.current.innerHTML;
                 const printWindow = window.open('', '_blank');
                 printWindow.document.write('<html><head><title>Cetak Pengajuan Faktur Pajak</title>');
                 printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
@@ -724,7 +729,46 @@
                 `);
                 printWindow.document.write('</style></head><body>');
                 printWindow.document.write('<div class="print-container">');
-                printWindow.document.write(printContent);
+                // Render content directly using JSX to avoid React error #62
+                printWindow.document.write(`
+                    <h1 class="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
+                    <table class="min-w-full bg-white text-gray-800">
+                        <thead>
+                            <tr>
+                                <th class="py-2 px-4" style="width: 25%;">Invoice</th>
+                                <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
+                                <th class="py-2 px-4" style="width: 35%;">Pelanggan</th>
+                                <th class="py-2 px-4" style="width: 20%;">Nilai</th>
+                                <th class="py-2 px-4" style="width: 5%;">Cek</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${selectedInvoices.map((inv, index) => `
+                                <tr key=${index}>
+                                    <td class="py-2 px-4">${inv.invoice}</td>
+                                    <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                    <td class="py-2 px-4">${inv.pelanggan}</td>
+                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                    <td class="py-2 px-4 text-center">
+                                        <input type="checkbox" ${inv.checked ? 'checked' : ''} disabled />
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Mengajukan,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${giverSignature})</p>
+                        </div>
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Menerima,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${receiverSignature})</p>
+                        </div>
+                    </div>
+                `);
                 printWindow.document.write('</div></body></html>');
                 printWindow.document.close();
                 printWindow.print();
@@ -760,7 +804,7 @@
                                         onClick={() => handleSelectInvoice(inv)}
                                     >
                                         <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                        <p className="text-sm text-gray-400">{inv.pelanggan} - Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
+                                        <p className="text-sm text-gray-400">Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
                                     </div>
                                 ))}
                             </div>
@@ -776,7 +820,7 @@
                                     <div key={index} className="flex items-center justify-between bg-gray-900 p-3 rounded-lg shadow-md">
                                         <div>
                                             <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                            <p className="text-sm text-gray-400">{inv.pelanggan} - Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
+                                            <p className="text-sm text-gray-400">Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
                                         </div>
                                         <div className="flex items-center space-x-4">
                                             <label className="flex items-center text-gray-400">
@@ -809,22 +853,22 @@
                             <table className="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th class="py-2 px-4" style="width: 25%;">Invoice</th>
-                                        <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
-                                        <th class="py-2 px-4" style="width: 35%;">Pelanggan</th>
-                                        <th class="py-2 px-4" style="width: 20%;">Nilai</th>
-                                        <th class="py-2 px-4" style="width: 5%;">Cek</th> {/* Added Cek column */}
+                                        <th className="py-2 px-4" style={{width: '25%'}}>Invoice</th>
+                                        <th className="py-2 px-4" style={{width: '15%'}}>Tanggal</th>
+                                        <th className="py-2 px-4" style={{width: '35%'}}>Pelanggan</th>
+                                        <th className="py-2 px-4" style={{width: '20%'}}>Nilai</th>
+                                        <th className="py-2 px-4" style={{width: '5%'}}>Cek</th> {/* Added Cek column */}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {selectedInvoices.map((inv, index) => (
                                         <tr key={index}>
-                                            <td class="py-2 px-4">${inv.invoice}</td>
-                                            <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                            <td class="py-2 px-4">${inv.pelanggan}</td>
-                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                            <td class="py-2 px-4 text-center">
-                                                <input type="checkbox" ${inv.checked ? 'checked' : ''} disabled />
+                                            <td className="py-2 px-4">{inv.invoice}</td>
+                                            <td className="py-2 px-4">{formatDate(inv.tanggal)}</td>
+                                            <td className="py-2 px-4">{inv.pelanggan}</td>
+                                            <td className="py-2 px-4">Rp {formatNumberWithoutDecimal(inv.nilai)}</td>
+                                            <td className="py-2 px-4 text-center">
+                                                <input type="checkbox" checked={inv.checked} disabled />
                                             </td>
                                         </tr>
                                     ))}
@@ -835,12 +879,12 @@
                                 <div className="signature-box">
                                     <p className="text-lg font-medium">Yang Mengajukan,</p>
                                     <div className="signature-line"></div>
-                                    <p className="mt-2">(${giverSignature})</p>
+                                    <p className="mt-2">({giverSignature})</p>
                                 </div>
                                 <div className="signature-box">
                                     <p className="text-lg font-medium">Yang Menerima,</p>
                                     <div className="signature-line"></div>
-                                    <p className="mt-2">(${receiverSignature})</p>
+                                    <p className="mt-2">({receiverSignature})</p>
                                 </div>
                             </div>
                         </div>
@@ -901,7 +945,12 @@
                 });
 
                 // Siapkan konten untuk dicetak (dikelompokkan berdasarkan pelanggan)
-                let printContentHtml = '';
+                const printContentHtml = `
+                    <h1 class="text-2xl font-bold text-center mb-4">TANDA TERIMA</h1>
+                    <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${selectedCollector}</span></p>
+                `;
+
+                let tablesHtml = '';
                 const groupedByPelanggan = tandaTerimaInvoices.reduce((acc, invoice) => {
                     const pelanggan = invoice.pelanggan || 'Tanpa Pelanggan';
                     if (!acc[pelanggan]) {
@@ -911,12 +960,9 @@
                     return acc;
                 }, {});
 
-                printContentHtml += `<h1 class="text-2xl font-bold text-center mb-4">TANDA TERIMA</h1>`;
-                printContentHtml += `<p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${selectedCollector}</span></p>`;
-
                 for (const pelangganName in groupedByPelanggan) {
-                    printContentHtml += `<h2 class="text-xl font-semibold mt-6 mb-3">Pelanggan: ${pelangganName}</h2>`;
-                    printContentHtml += `<table class="min-w-full bg-white text-gray-800">
+                    tablesHtml += `<h2 class="text-xl font-semibold mt-6 mb-3">Pelanggan: ${pelangganName}</h2>`;
+                    tablesHtml += `<table class="min-w-full bg-white text-gray-800">
                         <thead>
                             <tr>
                                 <th class="py-2 px-4" style="width: 15%;">Invoice</th>
@@ -929,7 +975,7 @@
                         </thead>
                         <tbody>`;
                     groupedByPelanggan[pelangganName].forEach(inv => {
-                        printContentHtml += `
+                        tablesHtml += `
                             <tr>
                                 <td class="py-2 px-4">${inv.invoice}</td>
                                 <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
@@ -939,12 +985,13 @@
                                 <td class="py-2 px-4">${inv.keterangan}</td>
                             </tr>`;
                     });
-                    printContentHtml += `</tbody></table>`;
+                    tablesHtml += `</tbody></table>`;
                 }
 
                 // Tambahkan bagian tanda tangan ke konten cetak
                 const finalPrintContent = `
                     ${printContentHtml}
+                    ${tablesHtml}
                     <div class="signature-section">
                         <div class="signature-box">
                             <p class="text-lg font-medium">Yang Memberikan,</p>
@@ -1215,7 +1262,7 @@
                                     {/* Menampilkan invoiceDetails.map(inv => inv.invoice) untuk memastikan hanya nomor invoice yang ditampilkan */}
                                     <p className="text-gray-300 text-sm">Invoice(s): {entry.invoiceDetails ? entry.invoiceDetails.map(inv => inv.invoice).join(', ') : 'N/A'}</p>
                                     <p className="text-gray-300 text-sm">Pemberi: {entry.giverSignature}</p>
-                                    <p className="text-gray-300 text-sm">Penerima: ${entry.receiverSignature || '____________________'}</p>
+                                    <p className="text-gray-300 text-sm">Penerima: {entry.receiverSignature || '____________________'}</p>
                                 </div>
                             ))}
                         </div>
