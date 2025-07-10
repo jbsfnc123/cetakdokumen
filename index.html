@@ -51,10 +51,10 @@
             }
             /* Gaya tabel untuk dokumen cetak */
             table {
-                width: 100%;
+                width: auto; /* Changed to auto for better content fitting */
                 border-collapse: collapse;
                 margin-top: 20px;
-                table-layout: fixed; /* Penting untuk fit-to-page */
+                table-layout: auto; /* Changed from fixed to auto */
                 font-size: 8pt; /* Ukuran font lebih kecil untuk cetak */
             }
             /* Gaya header dan sel tabel */
@@ -438,15 +438,15 @@
                     <table class="min-w-full bg-white text-gray-800">
                         <thead>
                             <tr>
-                                <th class="py-2 px-4">Invoice</th>
-                                <th class="py-2 px-4">Tanggal</th>
-                                <th class="py-2 px-4">Jatuh Tempo</th>
-                                <th class="py-2 px-4">Pelanggan</th>
-                                <th class="py-2 px-4">Nilai</th>
-                                <th class="py-2 px-4">Pembayaran</th>
-                                <th class="py-2 px-4">Sisa</th>
-                                <th class="py-2 px-4">Perintah</th>
-                                <th class="py-2 px-4">Keterangan</th>
+                                <th class="py-2 px-4" style="width: 15%;">Invoice</th>
+                                <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
+                                <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
+                                <th class="py-2 px-4" style="width: 10%;">Nilai</th>
+                                <th class="py-2 px-4" style="width: 10%;">Pembayaran</th>
+                                <th class="py-2 px-4" style="width: 10%;">Sisa</th>
+                                <th class="py-2 px-4" style="width: 7%;">Perintah</th>
+                                <th class="py-2 px-4" style="width: 8%;">Keterangan</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -493,7 +493,7 @@
                     body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
                     .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
                     h1, h2, h3 { color: #333; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
+                    table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
                     th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
@@ -655,7 +655,7 @@
             // Handler untuk memilih invoice dari hasil pencarian
             const handleSelectInvoice = (invoice) => {
                 if (!selectedInvoices.some(inv => inv.invoice === invoice.invoice)) {
-                    setSelectedInvoices([...selectedInvoices, invoice]);
+                    setSelectedInvoices([...selectedInvoices, { ...invoice, checked: false }]); // Add checked state
                     setSearchTerm('');
                     setFilteredInvoices([]);
                 }
@@ -664,6 +664,15 @@
             // Handler untuk menghapus invoice yang dipilih
             const handleRemoveInvoice = (invoiceToRemove) => {
                 setSelectedInvoices(selectedInvoices.filter(inv => inv.invoice !== invoiceToRemove.invoice));
+            };
+
+            // Handler untuk memperbarui status checkbox pada invoice tertentu
+            const handleCheckInvoice = (invoiceId) => {
+                setSelectedInvoices(prevInvoices =>
+                    prevInvoices.map(inv =>
+                        inv.invoice === invoiceId ? { ...inv, checked: !inv.checked } : inv
+                    )
+                );
             };
 
             // Handler untuk proses cetak
@@ -688,54 +697,13 @@
                         tanggal: inv.tanggal,
                         pelanggan: inv.pelanggan,
                         nilai: inv.nilai,
-                        costcentercode: inv.costcentercode // Simpan costcentercode
+                        costcentercode: inv.costcentercode, // Simpan costcentercode
+                        checked: inv.checked // Simpan status checked
                     }))
                 });
 
                 // Siapkan konten untuk dicetak
-                const printContentHtml = `
-                    <h1 class="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
-                    <table class="min-w-full bg-white text-gray-800">
-                        <thead>
-                            <tr>
-                                <th style="width: 25%;">Invoice</th>
-                                <th style="width: 15%;">Tanggal</th>
-                                <th style="width: 40%;">Pelanggan</th>
-                                <th style="width: 15%;">Nilai</th>
-                                <th style="width: 5%;">Cek</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${selectedInvoices.map(inv => `
-                                <tr>
-                                    <td style="width: 25%;">${inv.invoice}</td>
-                                    <td style="width: 15%;">${formatDate(inv.tanggal)}</td>
-                                    <td style="width: 40%;">${inv.pelanggan}</td>
-                                    <td style="width: 15%;">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                    <td style="width: 5%;"></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-
-                // Tambahkan bagian tanda tangan ke konten cetak
-                const finalPrintContent = `
-                    ${printContentHtml}
-                    <div class="signature-section">
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Mengajukan,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${giverSignature})</p>
-                        </div>
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Menerima,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${receiverSignature})</p>
-                        </div>
-                    </div>
-                `;
-
+                const printContent = printAreaRef.current.innerHTML;
                 const printWindow = window.open('', '_blank');
                 printWindow.document.write('<html><head><title>Cetak Pengajuan Faktur Pajak</title>');
                 printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
@@ -744,7 +712,7 @@
                     body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
                     .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
                     h1, h2, h3 { color: #333; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
+                    table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
                     th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
@@ -756,7 +724,7 @@
                 `);
                 printWindow.document.write('</style></head><body>');
                 printWindow.document.write('<div class="print-container">');
-                printWindow.document.write(finalPrintContent);
+                printWindow.document.write(printContent);
                 printWindow.document.write('</div></body></html>');
                 printWindow.document.close();
                 printWindow.print();
@@ -810,12 +778,23 @@
                                             <p className="font-medium text-teal-300">{inv.invoice}</p>
                                             <p className="text-sm text-gray-400">{inv.pelanggan} - Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
                                         </div>
-                                        <button
-                                            className="ml-4 p-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm"
-                                            onClick={() => handleRemoveInvoice(inv)}
-                                        >
-                                            &times;
-                                        </button>
+                                        <div className="flex items-center space-x-4">
+                                            <label className="flex items-center text-gray-400">
+                                                <input
+                                                    type="checkbox"
+                                                    className="form-checkbox h-5 w-5 text-teal-500"
+                                                    checked={inv.checked}
+                                                    onChange={() => handleCheckInvoice(inv.invoice)}
+                                                />
+                                                <span className="ml-2 text-sm">Cek</span>
+                                            </label>
+                                            <button
+                                                className="p-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm"
+                                                onClick={() => handleRemoveInvoice(inv)}
+                                            >
+                                                &times;
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -825,41 +804,43 @@
                     {/* Bagian Pratinjau Cetak (disembunyikan, hanya untuk dicetak) */}
                     <div style={{ display: 'none' }}>
                         <div ref={printAreaRef} className="print-container">
-                            <h1 class="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
+                            <h1 className="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
 
-                            <table class="min-w-full bg-white text-gray-800">
+                            <table className="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th style="width: 25%;">Invoice</th>
-                                        <th style="width: 15%;">Tanggal</th>
-                                        <th style="width: 40%;">Pelanggan</th>
-                                        <th style="width: 15%;">Nilai</th>
-                                        <th style="width: 5%;">Cek</th>
+                                        <th class="py-2 px-4" style="width: 25%;">Invoice</th>
+                                        <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
+                                        <th class="py-2 px-4" style="width: 35%;">Pelanggan</th>
+                                        <th class="py-2 px-4" style="width: 20%;">Nilai</th>
+                                        <th class="py-2 px-4" style="width: 5%;">Cek</th> {/* Added Cek column */}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {selectedInvoices.map((inv, index) => (
                                         <tr key={index}>
-                                            <td style="width: 25%;">${inv.invoice}</td>
-                                            <td style="width: 15%;">${formatDate(inv.tanggal)}</td>
-                                            <td style="width: 40%;">${inv.pelanggan}</td>
-                                            <td style="width: 15%;">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                            <td style="width: 5%;"></td>
+                                            <td class="py-2 px-4">${inv.invoice}</td>
+                                            <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                            <td class="py-2 px-4">${inv.pelanggan}</td>
+                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                            <td class="py-2 px-4 text-center">
+                                                <input type="checkbox" ${inv.checked ? 'checked' : ''} disabled />
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
 
-                            <div class="signature-section">
-                                <div class="signature-box">
-                                    <p class="text-lg font-medium">Yang Mengajukan,</p>
-                                    <div class="signature-line"></div>
-                                    <p class="mt-2">(${giverSignature})</p>
+                            <div className="signature-section">
+                                <div className="signature-box">
+                                    <p className="text-lg font-medium">Yang Mengajukan,</p>
+                                    <div className="signature-line"></div>
+                                    <p className="mt-2">(${giverSignature})</p>
                                 </div>
-                                <div class="signature-box">
-                                    <p class="text-lg font-medium">Yang Menerima,</p>
-                                    <div class="signature-line"></div>
-                                    <p class="mt-2">(${receiverSignature})</p>
+                                <div className="signature-box">
+                                    <p className="text-lg font-medium">Yang Menerima,</p>
+                                    <div className="signature-line"></div>
+                                    <p className="mt-2">(${receiverSignature})</p>
                                 </div>
                             </div>
                         </div>
@@ -938,12 +919,12 @@
                     printContentHtml += `<table class="min-w-full bg-white text-gray-800">
                         <thead>
                             <tr>
-                                <th class="py-2 px-4">Invoice</th>
-                                <th class="py-2 px-4">Tanggal</th>
-                                <th class="py-2 px-4">Jatuh Tempo</th>
-                                <th class="py-2 px-4">Pelanggan</th>
-                                <th class="py-2 px-4">Nilai</th>
-                                <th class="py-2 px-4">Keterangan</th>
+                                <th class="py-2 px-4" style="width: 15%;">Invoice</th>
+                                <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
+                                <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
+                                <th class="py-2 px-4" style="width: 10%;">Nilai</th>
+                                <th class="py-2 px-4" style="width: 25%;">Keterangan</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -986,7 +967,7 @@
                     body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
                     .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
                     h1, h2, h3 { color: #333; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
+                    table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
                     th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
@@ -1095,12 +1076,12 @@
                             contentHtml += `<table class="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th class="py-2 px-4">Invoice</th>
-                                        <th class="py-2 px-4">Tanggal</th>
-                                        <th class="py-2 px-4">Jatuh Tempo</th>
-                                        <th class="py-2 px-4">Pelanggan</th>
-                                        <th class="py-2 px-4">Nilai</th>
-                                        <th class="py-2 px-4">Keterangan</th>
+                                        <th class="py-2 px-4" style="width: 15%;">Invoice</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
+                                        <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Nilai</th>
+                                        <th class="py-2 px-4" style="width: 25%;">Keterangan</th>
                                     </tr>
                                 </thead>
                                 <tbody>`;
@@ -1125,15 +1106,15 @@
                             <table class="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th class="py-2 px-4">Invoice</th>
-                                        <th class="py-2 px-4">Tanggal</th>
-                                        <th class="py-2 px-4">Jatuh Tempo</th>
-                                        <th class="py-2 px-4">Pelanggan</th>
-                                        <th class="py-2 px-4">Nilai</th>
-                                        <th class="py-2 px-4">Pembayaran</th>
-                                        <th class="py-2 px-4">Sisa</th>
-                                        <th class="py-2 px-4">Perintah</th>
-                                        <th class="py-2 px-4">Keterangan</th>
+                                        <th class="py-2 px-4" style="width: 15%;">Invoice</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
+                                        <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Nilai</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Pembayaran</th>
+                                        <th class="py-2 px-4" style="width: 10%;">Sisa</th>
+                                        <th class="py-2 px-4" style="width: 7%;">Perintah</th>
+                                        <th class="py-2 px-4" style="width: 8%;">Keterangan</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1160,21 +1141,23 @@
                         <table class="min-w-full bg-white text-gray-800">
                             <thead>
                                 <tr>
-                                    <th style="width: 25%;">Invoice</th>
-                                    <th style="width: 15%;">Tanggal</th>
-                                    <th style="width: 40%;">Pelanggan</th>
-                                    <th style="width: 15%;">Nilai</th>
-                                    <th style="width: 5%;">Cek</th>
+                                    <th class="py-2 px-4" style="width: 25%;">Invoice</th>
+                                    <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
+                                    <th class="py-2 px-4" style="width: 35%;">Pelanggan</th>
+                                    <th class="py-2 px-4" style="width: 20%;">Nilai</th>
+                                    <th class="py-2 px-4" style="width: 5%;">Cek</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${invoices.map(inv => `
                                     <tr>
-                                        <td style="width: 25%;">${inv.invoice}</td>
-                                        <td style="width: 15%;">${formatDate(inv.tanggal)}</td>
-                                        <td style="width: 40%;">${inv.pelanggan}</td>
-                                        <td style="width: 15%;">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                        <td style="width: 5%;"></td>
+                                        <td class="py-2 px-4">${inv.invoice}</td>
+                                        <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                        <td class="py-2 px-4">${inv.pelanggan}</td>
+                                        <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                        <td class="py-2 px-4 text-center">
+                                            <input type="checkbox" ${inv.checked ? 'checked' : ''} disabled />
+                                        </td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -1232,7 +1215,7 @@
                                     {/* Menampilkan invoiceDetails.map(inv => inv.invoice) untuk memastikan hanya nomor invoice yang ditampilkan */}
                                     <p className="text-gray-300 text-sm">Invoice(s): {entry.invoiceDetails ? entry.invoiceDetails.map(inv => inv.invoice).join(', ') : 'N/A'}</p>
                                     <p className="text-gray-300 text-sm">Pemberi: {entry.giverSignature}</p>
-                                    <p className="text-gray-300 text-sm">Penerima: {entry.receiverSignature || '____________________'}</p>
+                                    <p className="text-gray-300 text-sm">Penerima: ${entry.receiverSignature || '____________________'}</p>
                                 </div>
                             ))}
                         </div>
