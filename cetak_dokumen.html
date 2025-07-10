@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Cetak Dokumen</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PapaParse CDN for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        /* Mengatur font default untuk seluruh body */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Gaya cetak kustom untuk ukuran A4 */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                /* Memastikan warna latar belakang dan gambar dicetak */
+                -webkit-print-color-adjust: exact;
+            }
+            /* Kontainer utama untuk konten yang akan dicetak */
+            .print-container {
+                width: 210mm; /* Lebar A4 */
+                min-height: 297mm; /* Tinggi A4 */
+                margin: 0 auto;
+                padding: 20mm;
+                box-sizing: border-box;
+                /* Memastikan setiap kontainer cetak dimulai di halaman baru jika ada beberapa */
+                page-break-after: always;
+                color: #000; /* Memastikan teks berwarna hitam untuk dicetak */
+                background-color: #fff; /* Memastikan latar belakang berwarna putih untuk dicetak */
+            }
+            /* Bagian tanda tangan dalam dokumen cetak */
+            .signature-section {
+                display: flex;
+                justify-content: space-around;
+                margin-top: 50px;
+                text-align: center;
+            }
+            /* Kotak untuk setiap tanda tangan */
+            .signature-box {
+                width: 45%;
+            }
+            /* Garis untuk tanda tangan */
+            .signature-line {
+                border-bottom: 1px solid #000;
+                padding-top: 60px;
+                margin-top: 10px;
+            }
+            /* Gaya tabel untuk dokumen cetak */
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+                table-layout: fixed; /* Penting untuk fit-to-page */
+                font-size: 8pt; /* Ukuran font lebih kecil untuk cetak */
+            }
+            /* Gaya header dan sel tabel */
+            th, td {
+                border: 1px solid #ddd;
+                padding: 4px; /* Padding lebih kecil untuk cetak */
+                text-align: left;
+                color: #000; /* Memastikan teks tabel berwarna hitam */
+                word-wrap: break-word; /* Mencegah teks meluap */
+            }
+            /* Gaya header tabel */
+            th {
+                background-color: #f2f2f2;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- CDN React -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel untuk transformasi JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        // Komponen utama aplikasi
+        const App = () => {
+            // State untuk menyimpan semua data invoice yang di-parsing
+            const [invoiceData, setInvoiceData] = React.useState([]);
+            // State untuk menyimpan daftar kolektor (hardcoded)
+            const [collectors, setCollectors] = React.useState(['Chandra', 'Firgie', 'Deni']);
+            // State untuk menyimpan riwayat formulir yang dicetak
+            const [printHistory, setPrintHistory] = React.useState([]);
+            // State untuk invoice yang telah dipilih untuk dicetak di Surat Jalan Tagihan
+            const [selectedInvoices, setSelectedInvoices] = React.useState([]);
+            // State untuk kolektor yang dipilih dari dropdown (digunakan di Surat Jalan Tagihan dan Tanda Terima)
+            const [selectedCollector, setSelectedCollector] = React.useState('');
+            // State untuk mengelola tab yang aktif ('surat_jalan', 'faktur_pajak', 'tanda_terima', atau 'history')
+            const [activeTab, setActiveTab] = React.useState('surat_jalan');
+            // State untuk cabang yang dipilih (slicer)
+            const [selectedCabang, setSelectedCabang] = React.useState('');
+
+            // Efek samping untuk memuat riwayat cetak dari localStorage saat aplikasi dimuat
+            React.useEffect(() => {
+                const storedPrintHistory = localStorage.getItem('printHistory');
+                if (storedPrintHistory) {
+                    setPrintHistory(JSON.parse(storedPrintHistory));
+                }
+            }, []);
+
+            // Efek samping untuk menyimpan riwayat cetak ke localStorage setiap kali ada perubahan
+            React.useEffect(() => {
+                localStorage.setItem('printHistory', JSON.stringify(printHistory));
+            }, [printHistory]);
+
+            // Handler untuk mengunggah file CSV
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    // PapaParse tersedia secara global melalui CDN
+                    Papa.parse(file, {
+                        header: true, // Mengasumsikan baris pertama berisi header
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            // Memetakan header CSV ke kunci yang diinginkan
+                            const mappedData = results.data.map(row => ({
+                                invoice: row['logtransentrytext'],
+                                tanggal: row['entrydate'],
+                                jatuhTempo: row['duedate'],
+                                sales: row['salesman'],
+                                pelanggan: row['name'],
+                                nilai: parseFloat(row['originalvalue']),
+                                pembayaran: parseFloat(row['payment']),
+                                sisa: parseFloat(row['sisa']),
+                                costcentercode: row['costcentercode'] || 'N/A' // Tambahkan costcentercode
+                            }));
+                            setInvoiceData(mappedData);
+                            // Menggunakan kotak pesan kustom sebagai pengganti alert()
+                            showMessageBox('Data CSV berhasil diimpor!');
+                        },
+                        error: (error) => {
+                            console.error('Error parsing CSV:', error);
+                            // Menggunakan kotak pesan kustom sebagai pengganti alert()
+                            showMessageBox('Gagal mengimpor CSV. Pastikan format benar.');
+                        }
+                    });
+                }
+            };
+
+            // Fungsi untuk menambahkan entri ke riwayat cetak
+            const addPrintHistory = (entry) => {
+                setPrintHistory([...printHistory, entry]);
+            };
+
+            // Fungsi Kotak Pesan Kustom (pengganti alert())
+            const showMessageBox = (message) => {
+                const messageBox = document.createElement('div');
+                messageBox.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background-color: rgba(31, 41, 55, 0.9); /* gray-800 dengan opacity */
+                    color: #fff;
+                    padding: 20px 30px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    z-index: 1000;
+                    text-align: center;
+                    font-size: 1.1rem;
+                    border: 1px solid #10b981; /* teal-500 */
+                `;
+                messageBox.textContent = message;
+                document.body.appendChild(messageBox);
+
+                setTimeout(() => {
+                    messageBox.remove();
+                }, 3000); // Pesan akan hilang setelah 3 detik
+            };
+
+            // Dapatkan daftar cabang unik untuk slicer
+            const uniqueCabang = React.useMemo(() => {
+                const cabangs = new Set(invoiceData.map(item => item.costcentercode).filter(Boolean));
+                return ['Semua Cabang', ...Array.from(cabangs).sort()];
+            }, [invoiceData]);
+
+            // Filter data invoice berdasarkan cabang yang dipilih
+            const filteredInvoiceDataByCabang = React.useMemo(() => {
+                if (selectedCabang === '' || selectedCabang === 'Semua Cabang') {
+                    return invoiceData;
+                }
+                return invoiceData.filter(item => item.costcentercode === selectedCabang);
+            }, [invoiceData, selectedCabang]);
+
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-700 text-gray-100 font-inter p-4">
+                    <header className="text-center mb-8">
+                        <h1 className="text-4xl font-bold text-teal-400 mb-2">Aplikasi Cetak Dokumen</h1>
+                        <p className="text-gray-300">Surat Jalan Tagihan & Pengajuan Faktur Pajak</p>
+                    </header>
+
+                    <div className="max-w-6xl mx-auto bg-gray-800 bg-opacity-70 rounded-lg shadow-xl p-6">
+                        {/* Tab Navigasi */}
+                        <nav className="flex justify-center mb-6 border-b border-gray-600">
+                            <button
+                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
+                                    activeTab === 'surat_jalan'
+                                        ? 'bg-teal-600 text-white shadow-lg'
+                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                }`}
+                                onClick={() => setActiveTab('surat_jalan')}
+                            >
+                                Surat Jalan Tagihan
+                            </button>
+                            <button
+                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
+                                    activeTab === 'tanda_terima'
+                                        ? 'bg-teal-600 text-white shadow-lg'
+                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                }`}
+                                onClick={() => setActiveTab('tanda_terima')}
+                            >
+                                Tanda Terima
+                            </button>
+                            <button
+                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
+                                    activeTab === 'faktur_pajak'
+                                        ? 'bg-teal-600 text-white shadow-lg'
+                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                }`}
+                                onClick={() => setActiveTab('faktur_pajak')}
+                            >
+                                Pengajuan Faktur Pajak
+                            </button>
+                            <button
+                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
+                                    activeTab === 'history'
+                                        ? 'bg-teal-600 text-white shadow-lg'
+                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                }`}
+                                onClick={() => setActiveTab('history')}
+                            >
+                                Riwayat Cetak
+                            </button>
+                        </nav>
+
+                        {/* Pengunggah CSV */}
+                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
+                            <label htmlFor="csv-upload" className="block text-gray-300 text-sm font-bold mb-2">
+                                Unggah Data CSV (daftar piutang.csv):
+                            </label>
+                            <input
+                                type="file"
+                                id="csv-upload"
+                                accept=".csv"
+                                onChange={handleFileUpload}
+                                className="block w-full text-sm text-gray-300
+                                        file:mr-4 file:py-2 file:px-4
+                                        file:rounded-full file:border-0
+                                        file:text-sm file:font-semibold
+                                        file:bg-teal-500 file:text-white
+                                        hover:file:bg-teal-600 cursor-pointer"
+                            />
+                            {invoiceData.length > 0 && (
+                                <p className="mt-2 text-sm text-green-400">
+                                    {invoiceData.length} baris data berhasil dimuat.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Slicer Cabang */}
+                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
+                            <label htmlFor="cabang-slicer" className="block text-gray-300 text-sm font-bold mb-2">
+                                Filter Berdasarkan Cabang:
+                            </label>
+                            <select
+                                id="cabang-slicer"
+                                className="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
+                                value={selectedCabang}
+                                onChange={(e) => setSelectedCabang(e.target.value)}
+                            >
+                                {uniqueCabang.map((cabang, index) => (
+                                    <option key={index} value={cabang}>{cabang}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Render Bersyarat Tab */}
+                        {activeTab === 'surat_jalan' && (
+                            <SuratJalanTagihan
+                                invoiceData={filteredInvoiceDataByCabang} // Gunakan data yang sudah difilter
+                                collectors={collectors}
+                                addPrintHistory={addPrintHistory}
+                                showMessageBox={showMessageBox}
+                                selectedInvoices={selectedInvoices}
+                                setSelectedInvoices={setSelectedInvoices}
+                                selectedCollector={selectedCollector}
+                                setSelectedCollector={setSelectedCollector}
+                            />
+                        )}
+                        {activeTab === 'faktur_pajak' && (
+                            <PengajuanFakturPajak
+                                invoiceData={filteredInvoiceDataByCabang} // Gunakan data yang sudah difilter
+                                addPrintHistory={addPrintHistory}
+                                showMessageBox={showMessageBox}
+                            />
+                        )}
+                        {activeTab === 'tanda_terima' && (
+                            <TandaTerimaForm
+                                selectedInvoices={selectedInvoices} // Tanda terima tetap dari selectedInvoices global
+                                addPrintHistory={addPrintHistory}
+                                showMessageBox={showMessageBox}
+                                selectedCollector={selectedCollector}
+                            />
+                        )}
+                        {activeTab === 'history' && (
+                            <PrintHistory printHistory={printHistory} invoiceData={invoiceData} />
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Fungsi helper untuk memformat tanggal ke dd/mm/yy
+        const formatDate = (dateString) => {
+            if (!dateString) return '';
+            try {
+                // Buat objek Date dari string. Ini lebih robust terhadap berbagai format input.
+                const date = new Date(dateString);
+                // Pastikan tanggal valid
+                if (isNaN(date.getTime())) {
+                    return dateString; // Kembali ke string asli jika tidak valid
+                }
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0'); // Bulan dimulai dari 0
+                const year = String(date.getFullYear()).slice(-2); // Ambil 2 digit terakhir tahun
+                return `${day}/${month}/${year}`;
+            } catch (e) {
+                console.error("Error formatting date:", e);
+                return dateString; // Fallback jika ada error
+            }
+        };
+
+        // Fungsi helper untuk memformat angka tanpa desimal
+        const formatNumberWithoutDecimal = (num) => {
+            if (typeof num !== 'number' || isNaN(num)) return '0';
+            return num.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        };
+
+        // Komponen untuk Surat Jalan Tagihan
+        const SuratJalanTagihan = ({ invoiceData, collectors, addPrintHistory, showMessageBox, selectedInvoices, setSelectedInvoices, selectedCollector, setSelectedCollector }) => {
+            // State untuk istilah pencarian invoice
+            const [searchTerm, setSearchTerm] = React.useState('');
+            // State untuk invoice yang difilter berdasarkan pencarian
+            const [filteredInvoices, setFilteredInvoices] = React.useState([]);
+            // Ref untuk area yang akan dicetak
+            const printAreaRef = React.useRef(null);
+
+            // Tanda tangan pemberi dan penerima (tetap/dinamis)
+            const giverSignature = "Hesty";
+            const receiverSignature = selectedCollector; // Penerima adalah nama kolektor
+
+            // Efek samping untuk memfilter invoice berdasarkan istilah pencarian
+            React.useEffect(() => {
+                if (searchTerm) {
+                    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+                    const filtered = invoiceData.filter(inv =>
+                        inv.invoice && inv.invoice.toLowerCase().includes(lowerCaseSearchTerm)
+                    );
+                    setFilteredInvoices(filtered);
+                } else {
+                    setFilteredInvoices([]);
+                }
+            }, [searchTerm, invoiceData]);
+
+            // Handler untuk memilih invoice dari hasil pencarian
+            const handleSelectInvoice = (invoice) => {
+                if (!selectedInvoices.some(inv => inv.invoice === invoice.invoice)) {
+                    // Inisialisasi perintah dan keterangan saat invoice dipilih
+                    setSelectedInvoices([...selectedInvoices, { ...invoice, perintah: '', keterangan: '' }]);
+                    setSearchTerm(''); // Hapus pencarian setelah pemilihan
+                    setFilteredInvoices([]); // Hapus hasil filter
+                }
+            };
+
+            // Handler untuk menghapus invoice yang dipilih
+            const handleRemoveInvoice = (invoiceToRemove) => {
+                setSelectedInvoices(selectedInvoices.filter(inv => inv.invoice !== invoiceToRemove.invoice));
+            };
+
+            // Handler untuk memperbarui perintah atau keterangan pada invoice tertentu
+            const handleInvoiceDetailChange = (invoiceId, field, value) => {
+                setSelectedInvoices(prevInvoices =>
+                    prevInvoices.map(inv =>
+                        inv.invoice === invoiceId ? { ...inv, [field]: value } : inv
+                    )
+                );
+            };
+
+            // Handler untuk proses cetak
+            const handlePrint = () => {
+                if (selectedInvoices.length === 0) {
+                    showMessageBox('Pilih setidaknya satu invoice untuk dicetak.');
+                    return;
+                }
+                if (!selectedCollector) {
+                    showMessageBox('Pilih kolektor terlebih dahulu.');
+                    return;
+                }
+
+                // Tambahkan ke riwayat cetak
+                addPrintHistory({
+                    id: Date.now(), // ID unik untuk item riwayat
+                    type: 'surat_jalan',
+                    timestamp: new Date().toISOString(),
+                    collector: selectedCollector,
+                    giverSignature: giverSignature,
+                    receiverSignature: receiverSignature,
+                    isTandaTerimaEntry: false, // Ini adalah cetakan Surat Jalan standar
+                    // Simpan detail invoice lengkap untuk modal riwayat
+                    invoiceDetails: selectedInvoices.map(inv => ({
+                        invoice: inv.invoice,
+                        tanggal: inv.tanggal,
+                        jatuhTempo: inv.jatuhTempo,
+                        sales: inv.sales, // Tetap simpan sales di history, hanya tidak ditampilkan di form/cetak
+                        pelanggan: inv.pelanggan,
+                        nilai: inv.nilai,
+                        pembayaran: inv.pembayaran,
+                        sisa: inv.sisa,
+                        perintah: inv.perintah,
+                        keterangan: inv.keterangan,
+                        costcentercode: inv.costcentercode // Simpan costcentercode
+                    }))
+                });
+
+                // Siapkan konten untuk dicetak (selalu format tabel standar untuk Surat Jalan Tagihan)
+                const printContentHtml = `
+                    <h1 class="text-2xl font-bold text-center mb-4">SURAT JALAN TAGIHAN</h1>
+                    <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${selectedCollector}</span></p>
+                    <table class="min-w-full bg-white text-gray-800">
+                        <thead>
+                            <tr>
+                                <th class="py-2 px-4">Invoice</th>
+                                <th class="py-2 px-4">Tanggal</th>
+                                <th class="py-2 px-4">Jatuh Tempo</th>
+                                <th class="py-2 px-4">Pelanggan</th>
+                                <th class="py-2 px-4">Nilai</th>
+                                <th class="py-2 px-4">Pembayaran</th>
+                                <th class="py-2 px-4">Sisa</th>
+                                <th class="py-2 px-4">Perintah</th>
+                                <th class="py-2 px-4">Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${selectedInvoices.map(inv => `
+                                <tr>
+                                    <td class="py-2 px-4">${inv.invoice}</td>
+                                    <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                    <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
+                                    <td class="py-2 px-4">${inv.pelanggan}</td>
+                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.pembayaran)}</td>
+                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.sisa)}</td>
+                                    <td class="py-2 px-4">${inv.perintah}</td>
+                                    <td class="py-2 px-4">${inv.keterangan}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                // Tambahkan bagian tanda tangan ke konten cetak
+                const finalPrintContent = `
+                    ${printContentHtml}
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Memberikan,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${giverSignature})</p>
+                        </div>
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Menerima,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${receiverSignature})</p>
+                        </div>
+                    </div>
+                `;
+
+
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write('<html><head><title>Cetak Surat Jalan Tagihan</title>');
+                printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
+                printWindow.document.write('<style>');
+                printWindow.document.write(`
+                    body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
+                    .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                    h1, h2, h3 { color: #333; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
+                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th { background-color: #f2f2f2; }
+                    .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
+                    .signature-box { width: 45%; }
+                    .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; }
+                    }
+                `);
+                printWindow.document.write('</style></head><body>');
+                printWindow.document.write('<div class="print-container">');
+                printWindow.document.write(finalPrintContent); // Menggunakan konten HTML yang sudah dibuat
+                printWindow.document.write('</div></body></html>');
+                printWindow.document.close();
+                printWindow.print();
+
+                showMessageBox('Surat Jalan Tagihan berhasil dicetak dan disimpan dalam riwayat.');
+                // Reset formulir setelah dicetak
+                setSelectedInvoices([]);
+                setSelectedCollector('');
+            };
+
+            return (
+                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
+                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Surat Jalan Tagihan</h2>
+
+                    {/* Pencarian dan Pemilihan Invoice */}
+                    <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
+                        <label htmlFor="invoice-search" className="block text-gray-300 text-sm font-bold mb-2">
+                            Cari Invoice (ketik nomor invoice):
+                        </label>
+                        <input
+                            type="text"
+                            id="invoice-search"
+                            className="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
+                            placeholder="Contoh: INV-2023-001"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        {filteredInvoices.length > 0 && (
+                            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-900 rounded-lg border border-gray-600">
+                                {filteredInvoices.map((inv, index) => (
+                                    <div
+                                        key={index}
+                                        className="p-3 cursor-pointer hover:bg-gray-700 border-b border-gray-700 last:border-b-0"
+                                        onClick={() => handleSelectInvoice(inv)}
+                                    >
+                                        <p className="font-medium text-teal-300">{inv.invoice}</p>
+                                        <p className="text-sm text-gray-400">{inv.pelanggan} - Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Invoice yang Dipilih */}
+                    {selectedInvoices.length > 0 && (
+                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
+                            <h3 className="text-xl font-semibold text-gray-200 mb-3">Detail Invoice Terpilih:</h3>
+                            {selectedInvoices.map((inv) => (
+                                <div key={inv.invoice} className="bg-gray-900 p-4 rounded-lg shadow-md mb-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <p className="font-medium text-teal-300">{inv.invoice}</p>
+                                            <p className="text-sm text-gray-400">{inv.pelanggan} - Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
+                                            {/* Sales removed from here */}
+                                        </div>
+                                        <button
+                                            className="ml-4 p-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm"
+                                            onClick={() => handleRemoveInvoice(inv)}
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-1">Perintah:</label>
+                                            <select
+                                                className="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
+                                                value={inv.perintah}
+                                                onChange={(e) => handleInvoiceDetailChange(inv.invoice, 'perintah', e.target.value)}
+                                            >
+                                                <option value="">-- Pilih Perintah --</option>
+                                                <option value="Tagihan">Tagihan</option>
+                                                <option value="Tanda Terima">Tanda Terima</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-1">Keterangan:</label>
+                                            <textarea
+                                                className="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 h-20 resize-y focus:ring-teal-500 focus:border-teal-500"
+                                                value={inv.keterangan}
+                                                onChange={(e) => handleInvoiceDetailChange(inv.invoice, 'keterangan', e.target.value)}
+                                                placeholder="Isi keterangan..."
+                                            ></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Pemilihan Kolektor */}
+                    <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
+                        <h3 className="text-xl font-semibold text-gray-200 mb-3">Pilih Kolektor:</h3>
+                        <div className="flex items-center space-x-4">
+                            <select
+                                className="flex-grow p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
+                                value={selectedCollector}
+                                onChange={(e) => setSelectedCollector(e.target.value)}
+                            >
+                                <option value="">-- Pilih Kolektor --</option>
+                                {collectors.map((collector, index) => (
+                                    <option key={index} value={collector}>{collector}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Tombol Cetak */}
+                    <button
+                        className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white text-xl font-bold rounded-lg shadow-lg transition duration-300 transform hover:scale-105"
+                        onClick={handlePrint}
+                    >
+                        Cetak Surat Jalan Tagihan
+                    </button>
+                </div>
+            );
+        };
+
+        // Komponen untuk Pengajuan Faktur Pajak
+        const PengajuanFakturPajak = ({ invoiceData, addPrintHistory, showMessageBox }) => {
+            // State untuk istilah pencarian invoice
+            const [searchTerm, setSearchTerm] = React.useState('');
+            // State untuk invoice yang difilter berdasarkan pencarian
+            const [filteredInvoices, setFilteredInvoices] = React.useState([]);
+            // State untuk invoice yang telah dipilih untuk dicetak
+            const [selectedInvoices, setSelectedInvoices] = React.useState([]);
+            // Ref untuk area yang akan dicetak
+            const printAreaRef = React.useRef(null);
+
+            // Tanda tangan pemberi dan penerima (tetap)
+            const giverSignature = "Hesty";
+            const receiverSignature = "Endah";
+
+            // Efek samping untuk memfilter invoice berdasarkan istilah pencarian
+            React.useEffect(() => {
+                if (searchTerm) {
+                    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+                    const filtered = invoiceData.filter(inv =>
+                        inv.invoice && inv.invoice.toLowerCase().includes(lowerCaseSearchTerm)
+                    );
+                    setFilteredInvoices(filtered);
+                } else {
+                    setFilteredInvoices([]);
+                }
+            }, [searchTerm, invoiceData]);
+
+            // Handler untuk memilih invoice dari hasil pencarian
+            const handleSelectInvoice = (invoice) => {
+                if (!selectedInvoices.some(inv => inv.invoice === invoice.invoice)) {
+                    setSelectedInvoices([...selectedInvoices, invoice]);
+                    setSearchTerm('');
+                    setFilteredInvoices([]);
+                }
+            };
+
+            // Handler untuk menghapus invoice yang dipilih
+            const handleRemoveInvoice = (invoiceToRemove) => {
+                setSelectedInvoices(selectedInvoices.filter(inv => inv.invoice !== invoiceToRemove.invoice));
+            };
+
+            // Handler untuk proses cetak
+            const handlePrint = () => {
+                if (selectedInvoices.length === 0) {
+                    showMessageBox('Pilih setidaknya satu invoice untuk dicetak.');
+                    return;
+                }
+
+                // Tambahkan ke riwayat cetak
+                addPrintHistory({
+                    id: Date.now(),
+                    type: 'faktur_pajak',
+                    timestamp: new Date().toISOString(),
+                    invoices: selectedInvoices.map(inv => inv.invoice),
+                    giverSignature: giverSignature,
+                    receiverSignature: receiverSignature,
+                    isTandaTerimaEntry: false,
+                    // Simpan detail invoice lengkap untuk modal riwayat
+                    invoiceDetails: selectedInvoices.map(inv => ({
+                        invoice: inv.invoice,
+                        tanggal: inv.tanggal,
+                        pelanggan: inv.pelanggan,
+                        nilai: inv.nilai,
+                        costcentercode: inv.costcentercode // Simpan costcentercode
+                    }))
+                });
+
+                // Siapkan konten untuk dicetak
+                const printContent = printAreaRef.current.innerHTML;
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write('<html><head><title>Cetak Pengajuan Faktur Pajak</title>');
+                printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
+                printWindow.document.write('<style>');
+                printWindow.document.write(`
+                    body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
+                    .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                    h1, h2, h3 { color: #333; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
+                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th { background-color: #f2f2f2; }
+                    .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
+                    .signature-box { width: 45%; }
+                    .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; }
+                    }
+                `);
+                printWindow.document.write('</style></head><body>');
+                printWindow.document.write('<div class="print-container">');
+                printWindow.document.write(printContent);
+                printWindow.document.write('</div></body></html>');
+                printWindow.document.close();
+                printWindow.print();
+
+                showMessageBox('Pengajuan Faktur Pajak berhasil dicetak dan disimpan dalam riwayat.');
+                // Reset formulir setelah dicetak
+                setSelectedInvoices([]);
+            };
+
+            return (
+                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
+                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Pengajuan Faktur Pajak</h2>
+
+                    {/* Pencarian dan Pemilihan Invoice */}
+                    <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
+                        <label htmlFor="invoice-search-faktur" className="block text-gray-300 text-sm font-bold mb-2">
+                            Cari Invoice (ketik nomor invoice):
+                        </label>
+                        <input
+                            type="text"
+                            id="invoice-search-faktur"
+                            className="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
+                            placeholder="Contoh: INV-2023-001"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        {filteredInvoices.length > 0 && (
+                            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-900 rounded-lg border border-gray-600">
+                                {filteredInvoices.map((inv, index) => (
+                                    <div
+                                        key={index}
+                                        className="p-3 cursor-pointer hover:bg-gray-700 border-b border-gray-700 last:border-b-0"
+                                        onClick={() => handleSelectInvoice(inv)}
+                                    >
+                                        <p className="font-medium text-teal-300">{inv.invoice}</p>
+                                        <p className="text-sm text-gray-400">{inv.pelanggan} - Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Invoice yang Dipilih */}
+                    {selectedInvoices.length > 0 && (
+                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
+                            <h3 className="text-xl font-semibold text-gray-200 mb-3">Invoice Terpilih:</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {selectedInvoices.map((inv, index) => (
+                                    <div key={index} className="flex items-center justify-between bg-gray-900 p-3 rounded-lg shadow-md">
+                                        <div>
+                                            <p className="font-medium text-teal-300">{inv.invoice}</p>
+                                            <p className="text-sm text-gray-400">{inv.pelanggan} - Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
+                                        </div>
+                                        <button
+                                            className="ml-4 p-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm"
+                                            onClick={() => handleRemoveInvoice(inv)}
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Bagian Pratinjau Cetak (disembunyikan, hanya untuk dicetak) */}
+                    <div style={{ display: 'none' }}>
+                        <div ref={printAreaRef} className="print-container">
+                            <h1 className="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
+
+                            <table className="min-w-full bg-white text-gray-800">
+                                <thead>
+                                    <tr>
+                                        <th className="py-2 px-4">Invoice</th>
+                                        <th class="py-2 px-4">Tanggal</th>
+                                        <th className="py-2 px-4">Pelanggan</th>
+                                        <th className="py-2 px-4">Nilai</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedInvoices.map((inv, index) => (
+                                        <tr key={index}>
+                                            <td className="py-2 px-4">{inv.invoice}</td>
+                                            <td className="py-2 px-4">{formatDate(inv.tanggal)}</td>
+                                            <td className="py-2 px-4">{inv.pelanggan}</td>
+                                            <td className="py-2 px-4">Rp {formatNumberWithoutDecimal(inv.nilai)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            <div className="signature-section">
+                                <div className="signature-box">
+                                    <p className="text-lg font-medium">Yang Mengajukan,</p>
+                                    <div className="signature-line"></div>
+                                    <p className="mt-2">({giverSignature})</p>
+                                </div>
+                                <div className="signature-box">
+                                    <p className="text-lg font-medium">Yang Menerima,</p>
+                                    <div className="signature-line"></div>
+                                    <p className="mt-2">({receiverSignature})</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tombol Cetak */}
+                    <button
+                        className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white text-xl font-bold rounded-lg shadow-lg transition duration-300 transform hover:scale-105"
+                        onClick={handlePrint}
+                    >
+                        Cetak Pengajuan Faktur Pajak
+                    </button>
+                </div>
+            );
+        };
+
+        // Komponen baru untuk Tanda Terima
+        const TandaTerimaForm = ({ selectedInvoices, addPrintHistory, showMessageBox, selectedCollector }) => {
+            const tandaTerimaInvoices = selectedInvoices.filter(inv => inv.perintah === 'Tanda Terima');
+            const printAreaRef = React.useRef(null);
+
+            // Tanda tangan pemberi dan penerima untuk Tanda Terima
+            const giverSignature = selectedCollector; // Yang Memberikan adalah Kolektor
+            const receiverSignature = ""; // Yang Menerima dikosongkan
+
+            const handlePrintTandaTerima = () => {
+                if (tandaTerimaInvoices.length === 0) {
+                    showMessageBox('Tidak ada invoice dengan perintah "Tanda Terima" yang dipilih.');
+                    return;
+                }
+                if (!selectedCollector) {
+                    showMessageBox('Pilih kolektor terlebih dahulu di tab Surat Jalan Tagihan.');
+                    return;
+                }
+
+                // Tambahkan ke riwayat cetak
+                addPrintHistory({
+                    id: Date.now(),
+                    type: 'surat_jalan', // Tetap sebagai surat_jalan, tapi tandai sebagai Tanda Terima
+                    timestamp: new Date().toISOString(),
+                    collector: selectedCollector,
+                    giverSignature: giverSignature, // Gunakan giverSignature yang baru
+                    receiverSignature: receiverSignature, // Gunakan receiverSignature yang baru
+                    isTandaTerimaEntry: true, // Tandai sebagai entri Tanda Terima
+                    invoiceDetails: tandaTerimaInvoices.map(inv => ({
+                        invoice: inv.invoice,
+                        tanggal: inv.tanggal,
+                        jatuhTempo: inv.jatuhTempo,
+                        sales: inv.sales, // Tetap simpan sales di history, hanya tidak ditampilkan di form/cetak
+                        pelanggan: inv.pelanggan,
+                        nilai: inv.nilai,
+                        pembayaran: inv.pembayaran, // Tetap simpan pembayaran di history
+                        sisa: inv.sisa, // Tetap simpan sisa di history
+                        perintah: inv.perintah, // Perintah tetap disimpan di history
+                        keterangan: inv.keterangan,
+                        costcentercode: inv.costcentercode // Simpan costcentercode
+                    }))
+                });
+
+                // Siapkan konten untuk dicetak (dikelompokkan berdasarkan pelanggan)
+                let printContentHtml = '';
+                const groupedByPelanggan = tandaTerimaInvoices.reduce((acc, invoice) => {
+                    const pelanggan = invoice.pelanggan || 'Tanpa Pelanggan';
+                    if (!acc[pelanggan]) {
+                        acc[pelanggan] = [];
+                    }
+                    acc[pelanggan].push(invoice);
+                    return acc;
+                }, {});
+
+                printContentHtml += `<h1 class="text-2xl font-bold text-center mb-4">TANDA TERIMA</h1>`;
+                printContentHtml += `<p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${selectedCollector}</span></p>`;
+
+                for (const pelangganName in groupedByPelanggan) {
+                    printContentHtml += `<h2 class="text-xl font-semibold mt-6 mb-3">Pelanggan: ${pelangganName}</h2>`;
+                    printContentHtml += `<table class="min-w-full bg-white text-gray-800">
+                        <thead>
+                            <tr>
+                                <th class="py-2 px-4">Invoice</th>
+                                <th class="py-2 px-4">Tanggal</th>
+                                <th class="py-2 px-4">Jatuh Tempo</th>
+                                <th class="py-2 px-4">Pelanggan</th>
+                                <th class="py-2 px-4">Nilai</th>
+                                <th class="py-2 px-4">Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                    groupedByPelanggan[pelangganName].forEach(inv => {
+                        printContentHtml += `
+                            <tr>
+                                <td class="py-2 px-4">${inv.invoice}</td>
+                                <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
+                                <td class="py-2 px-4">${inv.pelanggan}</td>
+                                <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                <td class="py-2 px-4">${inv.keterangan}</td>
+                            </tr>`;
+                    });
+                    printContentHtml += `</tbody></table>`;
+                }
+
+                // Tambahkan bagian tanda tangan ke konten cetak
+                const finalPrintContent = `
+                    ${printContentHtml}
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Memberikan,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${giverSignature})</p>
+                        </div>
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Menerima,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${receiverSignature || '____________________'})</p>
+                        </div>
+                    </div>
+                `;
+
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write('<html><head><title>Cetak Tanda Terima</title>');
+                printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
+                printWindow.document.write('<style>');
+                printWindow.document.write(`
+                    body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
+                    .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                    h1, h2, h3 { color: #333; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; font-size: 8pt; }
+                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th { background-color: #f2f2f2; }
+                    .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
+                    .signature-box { width: 45%; }
+                    .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; }
+                    }
+                `);
+                printWindow.document.write('</style></head><body>');
+                printWindow.document.write('<div class="print-container">');
+                printWindow.document.write(finalPrintContent);
+                printWindow.document.write('</div></body></html>');
+                printWindow.document.close();
+                printWindow.print();
+
+                showMessageBox('Tanda Terima berhasil dicetak dan disimpan dalam riwayat.');
+            };
+
+            return (
+                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
+                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Cetak Tanda Terima</h2>
+                    {!selectedCollector && (
+                        <p className="text-yellow-400 text-center mb-4">
+                            Pilih kolektor di tab "Surat Jalan Tagihan" untuk mengaktifkan cetak Tanda Terima.
+                        </p>
+                    )}
+                    {tandaTerimaInvoices.length === 0 ? (
+                        <p className="text-gray-400 text-center">
+                            Tidak ada invoice yang dipilih dengan perintah "Tanda Terima".
+                            Pilih invoice di tab "Surat Jalan Tagihan" dan atur perintahnya menjadi "Tanda Terima".
+                            <br/>
+                            Invoice yang dipilih dengan perintah "Tanda Terima" akan muncul di sini secara otomatis.
+                        </p>
+                    ) : (
+                        <div>
+                            <p className="text-gray-300 mb-4">
+                                Ada {tandaTerimaInvoices.length} invoice dengan perintah "Tanda Terima" yang siap dicetak.
+                            </p>
+                            {Object.entries(tandaTerimaInvoices.reduce((acc, invoice) => {
+                                const pelanggan = invoice.pelanggan || 'Tanpa Pelanggan';
+                                if (!acc[pelanggan]) {
+                                    acc[pelanggan] = [];
+                                }
+                                acc[pelanggan].push(invoice);
+                                return acc;
+                            }, {})).map(([pelangganName, invoicesForPelanggan]) => (
+                                <div key={pelangganName} className="mb-6 bg-gray-800 p-4 rounded-lg shadow-inner border border-gray-700">
+                                    <h4 className="text-xl font-semibold text-teal-300 mb-3">Pelanggan: {pelangganName}</h4>
+                                    {invoicesForPelanggan.map((inv) => (
+                                        <div key={inv.invoice} className="bg-gray-900 p-4 rounded-lg shadow-md mb-3">
+                                            <div>
+                                                <p className="font-medium text-teal-300">{inv.invoice}</p>
+                                                <p className="text-sm text-gray-400">Tanggal: {formatDate(inv.tanggal)}</p>
+                                                <p className="text-sm text-gray-400">Jatuh Tempo: {formatDate(inv.jatuhTempo)}</p>
+                                                <p className="text-sm text-gray-400">Pelanggan: {inv.pelanggan}</p>
+                                                <p className="text-sm text-gray-400">Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
+                                                <p className="text-sm text-gray-400">Keterangan: {inv.keterangan}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                            <button
+                                className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white text-xl font-bold rounded-lg shadow-lg transition duration-300 transform hover:scale-105"
+                                onClick={handlePrintTandaTerima}
+                                disabled={!selectedCollector}
+                            >
+                                Cetak Tanda Terima
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+
+        // Komponen untuk Riwayat Cetak
+        const PrintHistory = ({ printHistory, invoiceData }) => {
+            const [showHistoryModal, setShowHistoryModal] = React.useState(false);
+            const [historyModalContent, setHistoryModalContent] = React.useState('');
+
+            // Fungsi untuk membuat konten HTML untuk modal riwayat
+            const generateModalContent = (entry) => {
+                let contentHtml = '';
+                const invoices = entry.invoiceDetails || []; // Gunakan invoiceDetails yang tersimpan
+
+                if (entry.type === 'surat_jalan') {
+                    if (entry.isTandaTerimaEntry) { // Jika ini adalah entri Tanda Terima
+                        const groupedByPelanggan = invoices.reduce((acc, invoice) => {
+                            const pelanggan = invoice.pelanggan || 'Tanpa Pelanggan';
+                            if (!acc[pelanggan]) {
+                                acc[pelanggan] = [];
+                            }
+                            acc[pelanggan].push(invoice);
+                            return acc;
+                        }, {});
+
+                        contentHtml += `
+                            <h1 class="text-2xl font-bold text-center mb-4">TANDA TERIMA</h1>
+                            <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${entry.collector}</span></p>
+                        `;
+
+                        for (const pelangganName in groupedByPelanggan) {
+                            contentHtml += `<h2 class="text-xl font-semibold mt-6 mb-3">Pelanggan: ${pelangganName}</h2>`;
+                            contentHtml += `<table class="min-w-full bg-white text-gray-800">
+                                <thead>
+                                    <tr>
+                                        <th class="py-2 px-4">Invoice</th>
+                                        <th class="py-2 px-4">Tanggal</th>
+                                        <th class="py-2 px-4">Jatuh Tempo</th>
+                                        <th class="py-2 px-4">Pelanggan</th>
+                                        <th class="py-2 px-4">Nilai</th>
+                                        <th class="py-2 px-4">Keterangan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                            groupedByPelanggan[pelangganName].forEach(inv => {
+                                contentHtml += `
+                                    <tr>
+                                        <td class="py-2 px-4">${inv.invoice}</td>
+                                        <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                        <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
+                                        <td class="py-2 px-4">${inv.pelanggan}</td>
+                                        <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                        <td class="py-2 px-4">${inv.keterangan}</td>
+                                    </tr>`;
+                            });
+                            contentHtml += `</tbody></table>`;
+                        }
+
+                    } else { // Jika entri Tagihan standar
+                        contentHtml = `
+                            <h1 class="text-2xl font-bold text-center mb-4">SURAT JALAN TAGIHAN</h1>
+                            <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${entry.collector}</span></p>
+                            <table class="min-w-full bg-white text-gray-800">
+                                <thead>
+                                    <tr>
+                                        <th class="py-2 px-4">Invoice</th>
+                                        <th class="py-2 px-4">Tanggal</th>
+                                        <th class="py-2 px-4">Jatuh Tempo</th>
+                                        <th class="py-2 px-4">Pelanggan</th>
+                                        <th class="py-2 px-4">Nilai</th>
+                                        <th class="py-2 px-4">Pembayaran</th>
+                                        <th class="py-2 px-4">Sisa</th>
+                                        <th class="py-2 px-4">Perintah</th>
+                                        <th class="py-2 px-4">Keterangan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${invoices.map(inv => `
+                                        <tr>
+                                            <td class="py-2 px-4">${inv.invoice}</td>
+                                            <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                            <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
+                                            <td class="py-2 px-4">${inv.pelanggan}</td>
+                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.pembayaran)}</td>
+                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.sisa)}</td>
+                                            <td class="py-2 px-4">${inv.perintah}</td>
+                                            <td class="py-2 px-4">${inv.keterangan}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                } else if (entry.type === 'faktur_pajak') {
+                    contentHtml = `
+                        <h1 class="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
+                        <table class="min-w-full bg-white text-gray-800">
+                            <thead>
+                                <tr>
+                                    <th class="py-2 px-4">Invoice</th>
+                                    <th class="py-2 px-4">Tanggal</th>
+                                    <th class="py-2 px-4">Pelanggan</th>
+                                    <th class="py-2 px-4">Nilai</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${invoices.map(inv => `
+                                    <tr>
+                                        <td class="py-2 px-4">${inv.invoice}</td>
+                                        <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
+                                        <td class="py-2 px-4">${inv.pelanggan}</td>
+                                        <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+
+                // Tambahkan bagian tanda tangan ke konten cetak modal
+                contentHtml += `
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Memberikan,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${entry.giverSignature})</p>
+                        </div>
+                        <div class="signature-box">
+                            <p class="text-lg font-medium">Yang Menerima,</p>
+                            <div class="signature-line"></div>
+                            <p class="mt-2">(${entry.receiverSignature || '____________________'})</p>
+                        </div>
+                    </div>
+                `;
+                return contentHtml;
+            };
+
+            // Handler untuk menampilkan modal riwayat
+            const handleViewHistoryItem = (entry) => {
+                setHistoryModalContent(generateModalContent(entry));
+                setShowHistoryModal(true);
+            };
+
+            return (
+                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
+                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Riwayat Cetak</h2>
+                    {printHistory.length === 0 ? (
+                        <p className="text-gray-400 text-center">Belum ada riwayat cetak.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {printHistory.map((entry) => (
+                                <div
+                                    key={entry.id}
+                                    className="bg-gray-700 p-4 rounded-lg shadow-md border border-gray-600 cursor-pointer hover:bg-gray-600 transition duration-200"
+                                    onClick={() => handleViewHistoryItem(entry)}
+                                >
+                                    <p className="text-lg font-semibold text-teal-300 mb-2">
+                                        {entry.type === 'surat_jalan' ? 'Surat Jalan Tagihan' : 'Pengajuan Faktur Pajak'}
+                                        {entry.isTandaTerimaEntry && ' (Tanda Terima)'}
+                                    </p>
+                                    <p className="text-gray-300 text-sm">
+                                        Tanggal Cetak: {new Date(entry.timestamp).toLocaleString('id-ID')}
+                                    </p>
+                                    {entry.collector && (
+                                        <p className="text-gray-300 text-sm">Kolektor: {entry.collector}</p>
+                                    )}
+                                    {/* Menampilkan invoiceDetails.map(inv => inv.invoice) untuk memastikan hanya nomor invoice yang ditampilkan */}
+                                    <p className="text-gray-300 text-sm">Invoice(s): {entry.invoiceDetails ? entry.invoiceDetails.map(inv => inv.invoice).join(', ') : 'N/A'}</p>
+                                    <p className="text-gray-300 text-sm">Pemberi: {entry.giverSignature}</p>
+                                    <p className="text-gray-300 text-sm">Penerima: {entry.receiverSignature || '____________________'}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Modal untuk menampilkan detail riwayat */}
+                    {showHistoryModal && (
+                        <Modal onClose={() => setShowHistoryModal(false)}>
+                            <div className="bg-white p-6 rounded-lg text-gray-800 max-h-[80vh] overflow-y-auto">
+                                <div dangerouslySetInnerHTML={{ __html: historyModalContent }} />
+                            </div>
+                        </Modal>
+                    )}
+                </div>
+            );
+        };
+
+        // Komponen Modal Generik
+        const Modal = ({ children, onClose }) => {
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gray-800 p-6 rounded-lg shadow-2xl relative w-full max-w-3xl border border-gray-700">
+                        <button
+                            className="absolute top-3 right-3 text-gray-400 hover:text-gray-100 text-2xl font-bold"
+                            onClick={onClose}
+                        >
+                            &times;
+                        </button>
+                        {children}
+                    </div>
+                </div>
+            );
+        };
+
+        // Render komponen App ke div dengan id 'root'
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
