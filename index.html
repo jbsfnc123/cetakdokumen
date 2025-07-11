@@ -18,8 +18,8 @@
         /* Gaya cetak kustom untuk ukuran A4 */
         @media print {
             body {
-                margin: 0;
-                padding: 0;
+                margin: 0; /* Menghapus margin default browser */
+                padding: 0; /* Menghapus padding default browser */
                 /* Memastikan warna latar belakang dan gambar dicetak */
                 -webkit-print-color-adjust: exact;
             }
@@ -27,8 +27,8 @@
             .print-container {
                 width: 210mm; /* Lebar A4 */
                 min-height: 297mm; /* Tinggi A4 */
-                margin: 0 auto;
-                padding: 20mm;
+                margin: 0; /* Menghapus margin auto, membuat full width */
+                padding: 0; /* Menghapus padding untuk hasil cetakan full size */
                 box-sizing: border-box;
                 /* Memastikan setiap kontainer cetak dimulai di halaman baru jika ada beberapa */
                 page-break-after: always;
@@ -48,7 +48,7 @@
             }
             /* Garis untuk tanda tangan */
             .signature-line {
-                border-bottom: 1px solid #000;
+                /* border-bottom: 1px solid #000; /* Dihapus: Garis bawah tanda tangan */
                 padding-top: 60px;
                 margin-top: 10px;
             }
@@ -63,7 +63,7 @@
             /* Gaya header dan sel tabel */
             th, td {
                 border: 1px solid #ddd;
-                padding: 4px; /* Padding lebih kecil untuk cetak */
+                padding: 2px; /* Mengurangi padding sel tabel agar lebih rapat */
                 text-align: left;
                 color: #000; /* Memastikan teks tabel berwarna hitam */
                 word-wrap: break-word; /* Mencegah teks meluap */
@@ -71,6 +71,13 @@
             /* Gaya header tabel */
             th {
                 background-color: #f2f2f2;
+            }
+            /* Ukuran font untuk teks tanda tangan */
+            .signature-box p {
+                font-size: 6pt; /* Ukuran font lebih kecil untuk tanda tangan */
+            }
+            .signature-box p.mt-2 {
+                font-size: 5pt; /* Ukuran font lebih kecil untuk nama di bawah garis */
             }
         }
     </style>
@@ -443,15 +450,13 @@
                     <table class="min-w-full bg-white text-gray-800">
                         <thead>
                             <tr>
-                                <th class="py-2 px-4" style="width: 15%;">Invoice</th>
-                                <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
-                                <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
-                                <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
-                                <th class="py-2 px-4" style="width: 10%;">Nilai</th>
-                                <th class="py-2 px-4" style="width: 10%;">Pembayaran</th>
+                                <th class="py-2 px-4" style="width: 20%;">Invoice</th>
+                                <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
+                                <th class="py-2 px-4" style="width: 15%;">Jatuh Tempo</th>
+                                <th class="py-2 px-4" style="width: 25%;">Pelanggan</th>
                                 <th class="py-2 px-4" style="width: 10%;">Sisa</th>
-                                <th class="py-2 px-4" style="width: 7%;">Perintah</th>
-                                <th class="py-2 px-4" style="width: 8%;">Keterangan</th>
+                                <th class="py-2 px-4" style="width: 12%;">Perintah</th>
+                                <th class="py-2 px-4" style="width: 13%;">Keterangan</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -461,8 +466,6 @@
                                     <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
                                     <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
                                     <td class="py-2 px-4">${inv.pelanggan}</td>
-                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.pembayaran)}</td>
                                     <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.sisa)}</td>
                                     <td class="py-2 px-4">${inv.perintah}</td>
                                     <td class="py-2 px-4">${inv.keterangan}</td>
@@ -495,15 +498,17 @@
                 printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
                 printWindow.document.write('<style>');
                 printWindow.document.write(`
-                    body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
-                    .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+                    .print-container { width: 210mm; min-height: 297mm; margin: 0; padding: 0; box-sizing: border-box; page-break-after: always; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; }
                     h1, h2, h3 { color: #333; }
                     table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th, td { border: 1px solid #ddd; padding: 2px; text-align: left; word-wrap: break-word; }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
-                    .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
+                    .signature-line { /* border-bottom: 1px solid #000; */ padding-top: 60px; margin-top: 10px; }
+                    .signature-box p { font-size: 6pt; }
+                    .signature-box p.mt-2 { font-size: 5pt; }
                     @media print {
                         body { -webkit-print-color-adjust: exact; }
                     }
@@ -523,13 +528,14 @@
 
             return (
                 <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
-                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Surat Jalan Tagihan</h2>
+                    {/* H2 tag removed */}
+                    {/* <h2 className="text-3xl font-semibold text-teal-400 mb-6">Surat Jalan Tagihan</h2> */}
 
                     {/* Pencarian dan Pemilihan Invoice */}
                     <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
                         <label htmlFor="invoice-search" className="block text-gray-300 text-sm font-bold mb-2">
                             Cari Invoice (ketik nomor invoice):
-                        </label>
+                            </label>
                         <input
                             type="text"
                             id="invoice-search"
@@ -563,7 +569,7 @@
                                     <div className="flex items-center justify-between mb-2">
                                         <div>
                                             <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                            <p className="text-sm text-gray-400">Pelanggan: {inv.pelanggan}</p> {/* Added pelanggan */}
+                                            <p className="text-sm text-gray-400">Pelanggan: {inv.pelanggan}</p>
                                             <p className="text-sm text-gray-400">Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
                                             {/* Sales removed from here */}
                                         </div>
@@ -714,15 +720,17 @@
                 printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
                 printWindow.document.write('<style>');
                 printWindow.document.write(`
-                    body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
-                    .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+                    .print-container { width: 210mm; min-height: 297mm; margin: 0; padding: 0; box-sizing: border-box; page-break-after: always; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; }
                     h1, h2, h3 { color: #333; }
                     table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th, td { border: 1px solid #ddd; padding: 2px; text-align: left; word-wrap: break-word; }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
-                    .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
+                    .signature-line { /* border-bottom: 1px solid #000; */ padding-top: 60px; margin-top: 10px; }
+                    .signature-box p { font-size: 6pt; }
+                    .signature-box p.mt-2 { font-size: 5pt; }
                     @media print {
                         body { -webkit-print-color-adjust: exact; }
                     }
@@ -780,7 +788,8 @@
 
             return (
                 <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
-                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Pengajuan Faktur Pajak</h2>
+                    {/* H2 tag removed */}
+                    {/* <h2 className="text-3xl font-semibold text-teal-400 mb-6">Pengajuan Faktur Pajak</h2> */}
 
                     {/* Pencarian dan Pemilihan Invoice */}
                     <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
@@ -884,7 +893,7 @@
                                 <div className="signature-box">
                                     <p className="text-lg font-medium">Yang Menerima,</p>
                                     <div className="signature-line"></div>
-                                    <p className="mt-2">({receiverSignature})</p>
+                                    <p className="mt-2">(${receiverSignature})</p>
                                 </div>
                             </div>
                         </div>
@@ -1011,15 +1020,17 @@
                 printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
                 printWindow.document.write('<style>');
                 printWindow.document.write(`
-                    body { font-family: 'Inter', sans-serif; margin: 20px; color: #000; }
-                    .print-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+                    .print-container { width: 210mm; min-height: 297mm; margin: 0; padding: 0; box-sizing: border-box; page-break-after: always; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; }
                     h1, h2, h3 { color: #333; }
                     table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; word-wrap: break-word; }
+                    th, td { border: 1px solid #ddd; padding: 2px; text-align: left; word-wrap: break-word; }
                     th { background-color: #f2f2f2; }
                     .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
                     .signature-box { width: 45%; }
-                    .signature-line { border-bottom: 1px solid #000; padding-top: 60px; margin-top: 10px; }
+                    .signature-line { /* border-bottom: 1px solid #000; */ padding-top: 60px; margin-top: 10px; }
+                    .signature-box p { font-size: 6pt; }
+                    .signature-box p.mt-2 { font-size: 5pt; }
                     @media print {
                         body { -webkit-print-color-adjust: exact; }
                     }
@@ -1036,7 +1047,8 @@
 
             return (
                 <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
-                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Cetak Tanda Terima</h2>
+                    {/* H2 tag removed */}
+                    {/* <h2 className="text-3xl font-semibold text-teal-400 mb-6">Cetak Tanda Terima</h2> */}
                     {!selectedCollector && (
                         <p className="text-yellow-400 text-center mb-4">
                             Pilih kolektor di tab "Surat Jalan Tagihan" untuk mengaktifkan cetak Tanda Terima.
@@ -1153,15 +1165,13 @@
                             <table class="min-w-full bg-white text-gray-800">
                                 <thead>
                                     <tr>
-                                        <th class="py-2 px-4" style="width: 15%;">Invoice</th>
-                                        <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
-                                        <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
-                                        <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
-                                        <th class="py-2 px-4" style="width: 10%;">Nilai</th>
-                                        <th class="py-2 px-4" style="width: 10%;">Pembayaran</th>
+                                        <th class="py-2 px-4" style="width: 20%;">Invoice</th>
+                                        <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
+                                        <th class="py-2 px-4" style="width: 15%;">Jatuh Tempo</th>
+                                        <th class="py-2 px-4" style="width: 25%;">Pelanggan</th>
                                         <th class="py-2 px-4" style="width: 10%;">Sisa</th>
-                                        <th class="py-2 px-4" style="width: 7%;">Perintah</th>
-                                        <th class="py-2 px-4" style="width: 8%;">Keterangan</th>
+                                        <th class="py-2 px-4" style="width: 12%;">Perintah</th>
+                                        <th class="py-2 px-4" style="width: 13%;">Keterangan</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1171,8 +1181,6 @@
                                             <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
                                             <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
                                             <td class="py-2 px-4">${inv.pelanggan}</td>
-                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.pembayaran)}</td>
                                             <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.sisa)}</td>
                                             <td class="py-2 px-4">${inv.perintah}</td>
                                             <td class="py-2 px-4">${inv.keterangan}</td>
