@@ -1,1351 +1,625 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplikasi Cetak Dokumen</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- PapaParse CDN for CSV parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <title>MBG Suci - Sistem Keuangan</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Mengatur font default untuk seluruh body */
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-body: #f3f4f6;
+            --bg-panel: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        /* Gaya cetak kustom untuk ukuran A4 */
-        @media print {
-            body {
-                margin: 0; /* Menghapus margin default browser */
-                padding: 0; /* Menghapus padding default browser */
-                /* Memastikan warna latar belakang dan gambar dicetak */
-                -webkit-print-color-adjust: exact;
-            }
-            /* Kontainer utama untuk konten yang akan dicetak */
-            .print-container {
-                width: 210mm; /* Lebar A4 */
-                min-height: 297mm; /* Tinggi A4 */
-                margin: 0; /* Menghapus margin auto, membuat full width */
-                padding: 0; /* Menghapus padding untuk hasil cetakan full size */
-                box-sizing: border-box;
-                /* Memastikan setiap kontainer cetak dimulai di halaman baru jika ada beberapa */
-                page-break-after: always;
-                color: #000; /* Memastikan teks berwarna hitam untuk dicetak */
-                background-color: #fff; /* Memastikan latar belakang berwarna putih untuk dicetak */
-            }
-            /* Bagian tanda tangan dalam dokumen cetak */
-            .signature-section {
-                display: flex;
-                justify-content: space-around;
-                margin-top: 50px;
-                text-align: center;
-            }
-            /* Kotak untuk setiap tanda tangan */
-            .signature-box {
-                width: 45%;
-            }
-            /* Garis untuk tanda tangan */
-            .signature-line {
-                /* border-bottom: 1px solid #000; /* Dihapus: Garis bawah tanda tangan */
-                padding-top: 60px;
-                margin-top: 10px;
-            }
-            /* Gaya tabel untuk dokumen cetak */
-            table {
-                width: auto; /* Changed to auto for better content fitting */
-                border-collapse: collapse;
-                margin-top: 20px;
-                table-layout: auto; /* Changed from fixed to auto */
-                font-size: 8pt; /* Ukuran font lebih kecil untuk cetak */
-            }
-            /* Gaya header dan sel tabel */
-            th, td {
-                border: 1px solid #ddd;
-                padding: 2px; /* Mengurangi padding sel tabel agar lebih rapat */
-                text-align: left;
-                color: #000; /* Memastikan teks tabel berwarna hitam */
-                word-wrap: break-word; /* Mencegah teks meluap */
-            }
-            /* Gaya header tabel */
-            th {
-                background-color: #f2f2f2;
-            }
-            /* Ukuran font untuk teks tanda tangan */
-            .signature-box p {
-                font-size: 6pt; /* Ukuran font lebih kecil untuk tanda tangan */
-            }
-            .signature-box p.mt-2 {
-                font-size: 5pt; /* Ukuran font lebih kecil untuk nama di bawah garis */
-            }
-            /* Removed New CSS for custom header */
-            /* .custom-print-header {
-                position: absolute;
-                top: 10mm;
-                left: 10mm;
-                font-size: 12pt;
-                font-weight: bold;
-                color: #000;
-                z-index: 999;
-            } */
-            /* Remove default print headers/footers in some browsers (not universally supported) */
-            @page {
-                margin: 0;
-                size: A4;
-            }
-            @page :left {
-                margin: 0;
-            }
-            @page :right {
-                margin: 0;
-            }
-            @page :first {
-                margin: 0;
-            }
+
+        /* Navbar */
+        .navbar {
+            height: 60px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            z-index: 10;
         }
+
+        .app-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-outline { background: white; border-color: var(--border); color: var(--text-main); }
+        .btn-outline:hover { background: #f9fafb; border-color: #d1d5db; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-danger { background: white; color: var(--danger); border: 1px solid var(--danger); }
+        .file-input-hidden { display: none; }
+
+        /* Layout Split */
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+
+        /* Left Panel */
+        .left-panel {
+            width: 450px;
+            min-width: 350px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 5;
+        }
+
+        .panel-header { padding: 15px 20px; border-bottom: 1px solid var(--border); background: #f9fafb; }
+        
+        .tabs { display: flex; background: #e5e7eb; padding: 4px; border-radius: 8px; }
+        .tab {
+            flex: 1; padding: 8px; text-align: center; cursor: pointer;
+            border-radius: 6px; font-size: 0.875rem; font-weight: 600; color: var(--text-muted);
+        }
+        .tab.active { background: white; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+        .input-content { flex: 1; overflow-y: auto; padding: 20px; }
+
+        .form-card {
+            background: white; border: 1px solid var(--border);
+            border-radius: 8px; padding: 15px; margin-bottom: 15px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 12px; }
+        .row-badge { font-size: 0.75rem; background: #eff6ff; color: var(--primary); padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .full-width { grid-column: span 2; }
+
+        .form-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
+        .form-control:focus { outline: none; border-color: var(--primary); }
+        .form-control[readonly] { background-color: #f3f4f6; cursor: not-allowed; }
+
+        .action-bar { padding: 15px 20px; border-top: 1px solid var(--border); background: white; display: flex; gap: 10px; }
+
+        /* Resizer */
+        .resizer { width: 6px; background: var(--bg-body); cursor: col-resize; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+        .resizer:hover, .resizer.active { background: var(--primary); }
+
+        /* Right Panel */
+        .right-panel { flex: 1; overflow-y: auto; padding: 25px; background: var(--bg-body); }
+
+        .summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 10px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 8px; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-primary { color: var(--primary); }
+
+        .table-section { background: white; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 25px; }
+        .table-header { padding: 15px 20px; border-bottom: 1px solid var(--border); }
+        .table-header h3 { font-size: 1rem; font-weight: 600; }
+        .income-header { background: #f0fdf4; color: #166534; }
+        .expense-header { background: #fef2f2; color: #991b1b; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        th { text-align: left; padding: 12px 16px; background: #f9fafb; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text-muted); }
+        td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+        .col-money { text-align: right; font-family: 'Courier New', monospace; font-weight: 600; }
+        
+        .row-total-income { background-color: #dcfce7 !important; font-weight: bold; }
+        .row-opening-balance { background-color: #ffedd5 !important; font-weight: bold; }
+
     </style>
 </head>
 <body>
-    <div id="root"></div>
 
-    <!-- CDN React -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel untuk transformasi JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <nav class="navbar">
+        <div class="nav-left">
+            <input type="file" id="excelFile" accept=".xlsx, .xls" class="file-input-hidden">
+            <button class="btn btn-primary" onclick="document.getElementById('excelFile').click()">
+                📂 Import Master Data (Excel)
+            </button>
+            <button class="btn btn-outline" onclick="exportToExcel()">
+                📤 Export Laporan
+            </button>
+        </div>
+        <div class="app-title">MBG Suci System</div>
+        <div style="width: 150px;"></div>
+    </nav>
 
-    <script type="text/babel">
-        // Komponen utama aplikasi
-        const App = () => {
-            // State untuk menyimpan semua data invoice yang di-parsing
-            const [invoiceData, setInvoiceData] = React.useState([]);
-            // State untuk menyimpan daftar kolektor (hardcoded)
-            const [collectors, setCollectors] = React.useState(['Chandra', 'Firgie', 'Deni']);
-            // State untuk menyimpan riwayat formulir yang dicetak
-            const [printHistory, setPrintHistory] = React.useState([]);
-            // State untuk invoice yang telah dipilih untuk dicetak di Surat Jalan Tagihan
-            const [selectedInvoices, setSelectedInvoices] = React.useState([]);
-            // State untuk kolektor yang dipilih dari dropdown (digunakan di Surat Jalan Tagihan dan Tanda Terima)
-            const [selectedCollector, setSelectedCollector] = React.useState('');
-            // State untuk mengelola tab yang aktif ('surat_jalan', 'faktur_pajak', 'tanda_terima', atau 'history')
-            const [activeTab, setActiveTab] = React.useState('surat_jalan');
-            // State untuk cabang yang dipilih (slicer)
-            const [selectedCabang, setSelectedCabang] = React.useState('');
-
-            // Efek samping untuk memuat riwayat cetak dari localStorage saat aplikasi dimuat
-            React.useEffect(() => {
-                const storedPrintHistory = localStorage.getItem('printHistory');
-                if (storedPrintHistory) {
-                    setPrintHistory(JSON.parse(storedPrintHistory));
-                }
-            }, []);
-
-            // Efek samping untuk menyimpan riwayat cetak ke localStorage setiap kali ada perubahan
-            React.useEffect(() => {
-                localStorage.setItem('printHistory', JSON.stringify(printHistory));
-            }, [printHistory]);
-
-            // Handler untuk mengunggah file CSV
-            const handleFileUpload = (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    // PapaParse tersedia secara global melalui CDN
-                    Papa.parse(file, {
-                        header: true, // Mengasumsikan baris pertama berisi header
-                        skipEmptyLines: true,
-                        complete: (results) => {
-                            // Memetakan header CSV ke kunci yang diinginkan
-                            const mappedData = results.data.map(row => ({
-                                invoice: row['logtransentrytext'],
-                                tanggal: row['entrydate'],
-                                jatuhTempo: row['duedate'],
-                                sales: row['salesman'],
-                                pelanggan: row['name'],
-                                nilai: parseFloat(row['originalvalue']),
-                                pembayaran: parseFloat(row['payment']),
-                                sisa: parseFloat(row['sisa']),
-                                costcentercode: row['costcentercode'] || 'N/A' // Tambahkan costcentercode
-                            }));
-                            setInvoiceData(mappedData);
-                            // Menggunakan kotak pesan kustom sebagai pengganti alert()
-                            showMessageBox('Data CSV berhasil diimpor!');
-                        },
-                        error: (error) => {
-                            console.error('Error parsing CSV:', error);
-                            // Menggunakan kotak pesan kustom sebagai pengganti alert()
-                            showMessageBox('Gagal mengimpor CSV. Pastikan format benar.');
-                        }
-                    });
-                }
-            };
-
-            // Fungsi untuk menambahkan entri ke riwayat cetak
-            const addPrintHistory = (entry) => {
-                setPrintHistory([...printHistory, entry]);
-            };
-
-            // Fungsi Kotak Pesan Kustom (pengganti alert())
-            const showMessageBox = (message) => {
-                const messageBox = document.createElement('div');
-                messageBox.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background-color: rgba(31, 41, 55, 0.9); /* gray-800 dengan opacity */
-                    color: #fff;
-                    padding: 20px 30px;
-                    border-radius: 8px;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-                    z-index: 1000;
-                    text-align: center;
-                    font-size: 1.1rem;
-                    border: 1px solid #10b981; /* teal-500 */
-                `;
-                messageBox.textContent = message;
-                document.body.appendChild(messageBox);
-
-                setTimeout(() => {
-                    messageBox.remove();
-                }, 3000); // Pesan akan hilang setelah 3 detik
-            };
-
-            // Dapatkan daftar cabang unik untuk slicer
-            const uniqueCabang = React.useMemo(() => {
-                const cabangs = new Set(invoiceData.map(item => item.costcentercode).filter(Boolean));
-                return ['Semua Cabang', ...Array.from(cabangs).sort()];
-            }, [invoiceData]);
-
-            // Filter data invoice berdasarkan cabang yang dipilih
-            const filteredInvoiceDataByCabang = React.useMemo(() => {
-                if (selectedCabang === '' || selectedCabang === 'Semua Cabang') {
-                    return invoiceData;
-                }
-                return invoiceData.filter(item => item.costcentercode === selectedCabang);
-            }, [invoiceData, selectedCabang]);
-
-
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-700 text-gray-100 font-inter p-4">
-                    <header className="text-center mb-8">
-                        <h1 className="text-4xl font-bold text-teal-400 mb-2">Aplikasi Cetak Dokumen</h1>
-                        <p className="text-gray-300">Surat Jalan Tagihan & Pengajuan Faktur Pajak</p>
-                    </header>
-
-                    <div className="max-w-6xl mx-auto bg-gray-800 bg-opacity-70 rounded-lg shadow-xl p-6">
-                        {/* Tab Navigasi */}
-                        <nav className="flex justify-center mb-6 border-b border-gray-600">
-                            <button
-                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
-                                    activeTab === 'surat_jalan'
-                                        ? 'bg-teal-600 text-white shadow-lg'
-                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                                }`}
-                                onClick={() => setActiveTab('surat_jalan')}
-                            >
-                                Surat Jalan Tagihan
-                            </button>
-                            <button
-                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
-                                    activeTab === 'tanda_terima'
-                                        ? 'bg-teal-600 text-white shadow-lg'
-                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                                }`}
-                                onClick={() => setActiveTab('tanda_terima')}
-                            >
-                                Tanda Terima
-                            </button>
-                            <button
-                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
-                                    activeTab === 'faktur_pajak'
-                                        ? 'bg-teal-600 text-white shadow-lg'
-                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                                }`}
-                                onClick={() => setActiveTab('faktur_pajak')}
-                            >
-                                Pengajuan Faktur Pajak
-                            </button>
-                            <button
-                                className={`py-3 px-6 rounded-t-lg text-lg font-semibold transition-all duration-300 ${
-                                    activeTab === 'history'
-                                        ? 'bg-teal-600 text-white shadow-lg'
-                                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                                }`}
-                                onClick={() => setActiveTab('history')}
-                            >
-                                Riwayat Cetak
-                            </button>
-                        </nav>
-
-                        {/* Pengunggah CSV */}
-                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
-                            <label htmlFor="csv-upload" className="block text-gray-300 text-sm font-bold mb-2">
-                                Unggah Data CSV (daftar piutang.csv):
-                            </label>
-                            <input
-                                type="file"
-                                id="csv-upload"
-                                accept=".csv"
-                                onChange={handleFileUpload}
-                                className="block w-full text-sm text-gray-300
-                                        file:mr-4 file:py-2 file:px-4
-                                        file:rounded-full file:border-0
-                                        file:text-sm file:font-semibold
-                                        file:bg-teal-500 file:text-white
-                                        hover:file:bg-teal-600 cursor-pointer"
-                            />
-                            {invoiceData.length > 0 && (
-                                <p className="mt-2 text-sm text-green-400">
-                                    {invoiceData.length} baris data berhasil dimuat.
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Slicer Cabang */}
-                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
-                            <label htmlFor="cabang-slicer" className="block text-gray-300 text-sm font-bold mb-2">
-                                Filter Berdasarkan Cabang:
-                            </label>
-                            <select
-                                id="cabang-slicer"
-                                className="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
-                                value={selectedCabang}
-                                onChange={(e) => setSelectedCabang(e.target.value)}
-                            >
-                                {uniqueCabang.map((cabang, index) => (
-                                    <option key={index} value={cabang}>{cabang}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Render Bersyarat Tab */}
-                        {activeTab === 'surat_jalan' && (
-                            <SuratJalanTagihan
-                                invoiceData={filteredInvoiceDataByCabang} // Gunakan data yang sudah difilter
-                                collectors={collectors}
-                                addPrintHistory={addPrintHistory}
-                                showMessageBox={showMessageBox}
-                                selectedInvoices={selectedInvoices}
-                                setSelectedInvoices={setSelectedInvoices}
-                                selectedCollector={selectedCollector}
-                                setSelectedCollector={setSelectedCollector}
-                            />
-                        )}
-                        {activeTab === 'faktur_pajak' && (
-                            <PengajuanFakturPajak
-                                invoiceData={filteredInvoiceDataByCabang} // Gunakan data yang sudah difilter
-                                addPrintHistory={addPrintHistory}
-                                showMessageBox={showMessageBox}
-                            />
-                        )}
-                        {activeTab === 'tanda_terima' && (
-                            <TandaTerimaForm
-                                selectedInvoices={selectedInvoices} // Tanda terima tetap dari selectedInvoices global
-                                addPrintHistory={addPrintHistory}
-                                showMessageBox={showMessageBox}
-                                selectedCollector={selectedCollector}
-                            />
-                        )}
-                        {activeTab === 'history' && (
-                            <PrintHistory printHistory={printHistory} invoiceData={invoiceData} />
-                        )}
-                    </div>
+    <div class="main-container">
+        <div class="left-panel" id="leftPanel">
+            <div class="panel-header">
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('income')" id="tab-income">Uang Masuk</div>
+                    <div class="tab" onclick="switchTab('expense')" id="tab-expense">Uang Keluar</div>
                 </div>
-            );
-        };
+            </div>
 
-        // Fungsi helper untuk memformat tanggal ke dd/mm/yy
-        const formatDate = (dateString) => {
-            if (!dateString) return '';
-            try {
-                // Buat objek Date dari string. Ini lebih robust terhadap berbagai format input.
-                const date = new Date(dateString);
-                // Pastikan tanggal valid
-                if (isNaN(date.getTime())) {
-                    return dateString; // Kembali ke string asli jika tidak valid
-                }
-                const day = String(date.getDate()).padStart(2, '0');
-                const month = String(date.getMonth() + 1).padStart(2, '0'); // Bulan dimulai dari 0
-                const year = String(date.getFullYear()).slice(-2); // Ambil 2 digit terakhir tahun
-                return `${day}/${month}/${year}`;
-            } catch (e) {
-                console.error("Error formatting date:", e);
-                return dateString; // Fallback jika ada error
-            }
-        };
+            <div id="import-alert" style="background:#fff7ed; color:#9a3412; padding:10px; font-size:0.8rem; text-align:center; border-bottom:1px solid #fed7aa; display:block;">
+                ⚠️ Belum ada data Master. Silakan Import Excel.
+            </div>
 
-        // Fungsi helper untuk memformat angka tanpa desimal
-        const formatNumberWithoutDecimal = (num) => {
-            if (typeof num !== 'number' || isNaN(num)) return '0';
-            return num.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-        };
+            <div id="income-view" class="input-content">
+                <div id="incomeRows"></div>
+            </div>
 
-        // Komponen untuk Surat Jalan Tagihan
-        const SuratJalanTagihan = ({ invoiceData, collectors, addPrintHistory, showMessageBox, selectedInvoices, setSelectedInvoices, selectedCollector, setSelectedCollector }) => {
-            // State untuk istilah pencarian invoice
-            const [searchTerm, setSearchTerm] = React.useState('');
-            // State untuk invoice yang difilter berdasarkan pencarian
-            const [filteredInvoices, setFilteredInvoices] = React.useState([]);
-            // Ref untuk area yang akan dicetak
-            const printAreaRef = React.useRef(null);
+            <div id="expense-view" class="input-content" style="display: none;">
+                <div id="expenseRows"></div>
+            </div>
 
-            // Tanda tangan pemberi dan penerima (tetap/dinamis)
-            const giverSignature = "Hesty";
-            const receiverSignature = selectedCollector; // Penerima adalah nama kolektor
+            <div class="action-bar">
+                <button class="btn btn-outline" onclick="addNewRow()" style="flex: 1;">+ Tambah Item</button>
+                <button class="btn btn-primary" onclick="saveData()" style="flex: 1;">Simpan Data</button>
+            </div>
+        </div>
 
-            // Efek samping untuk memfilter invoice berdasarkan istilah pencarian
-            React.useEffect(() => {
-                if (searchTerm) {
-                    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-                    const filtered = invoiceData.filter(inv =>
-                        inv.invoice && inv.invoice.toLowerCase().includes(lowerCaseSearchTerm)
-                    );
-                    setFilteredInvoices(filtered);
-                } else {
-                    setFilteredInvoices([]);
-                }
-            }, [searchTerm, invoiceData]);
+        <div class="resizer" id="resizer"></div>
 
-            // Handler untuk memilih invoice dari hasil pencarian
-            const handleSelectInvoice = (invoice) => {
-                if (!selectedInvoices.some(inv => inv.invoice === invoice.invoice)) {
-                    // Inisialisasi perintah dan keterangan saat invoice dipilih
-                    setSelectedInvoices([...selectedInvoices, { ...invoice, perintah: '', keterangan: '' }]);
-                    setSearchTerm(''); // Hapus pencarian setelah pemilihan
-                    setFilteredInvoices([]); // Hapus hasil filter
-                }
-            };
-
-            // Handler untuk menghapus invoice yang dipilih
-            const handleRemoveInvoice = (invoiceToRemove) => {
-                setSelectedInvoices(selectedInvoices.filter(inv => inv.invoice !== invoiceToRemove.invoice));
-            };
-
-            // Handler untuk memperbarui perintah atau keterangan pada invoice tertentu
-            const handleInvoiceDetailChange = (invoiceId, field, value) => {
-                setSelectedInvoices(prevInvoices =>
-                    prevInvoices.map(inv =>
-                        inv.invoice === invoiceId ? { ...inv, [field]: value } : inv
-                    )
-                );
-            };
-
-            // Handler untuk proses cetak
-            const handlePrint = () => {
-                if (selectedInvoices.length === 0) {
-                    showMessageBox('Pilih setidaknya satu invoice untuk dicetak.');
-                    return;
-                }
-                if (!selectedCollector) {
-                    showMessageBox('Pilih kolektor terlebih dahulu.');
-                    return;
-                }
-
-                // Tambahkan ke riwayat cetak
-                addPrintHistory({
-                    id: Date.now(), // ID unik untuk item riwayat
-                    type: 'surat_jalan',
-                    timestamp: new Date().toISOString(),
-                    collector: selectedCollector,
-                    giverSignature: giverSignature,
-                    receiverSignature: receiverSignature,
-                    isTandaTerimaEntry: false, // Ini adalah cetakan Surat Jalan standar
-                    // Simpan detail invoice lengkap untuk modal riwayat
-                    invoiceDetails: selectedInvoices.map(inv => ({
-                        invoice: inv.invoice,
-                        tanggal: inv.tanggal,
-                        jatuhTempo: inv.jatuhTempo,
-                        sales: inv.sales, // Tetap simpan sales di history, hanya tidak ditampilkan di form/cetak
-                        pelanggan: inv.pelanggan,
-                        nilai: inv.nilai,
-                        pembayaran: inv.pembayaran,
-                        sisa: inv.sisa,
-                        perintah: inv.perintah,
-                        keterangan: inv.keterangan,
-                        costcentercode: inv.costcentercode // Simpan costcentercode
-                    }))
-                });
-
-                // Siapkan konten untuk dicetak (selalu format tabel standar untuk Surat Jalan Tagihan)
-                const printContentHtml = `
-                    <h1 class="text-2xl font-bold text-center mb-4">SURAT JALAN TAGIHAN</h1>
-                    <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${selectedCollector}</span></p>
-                    <table class="min-w-full bg-white text-gray-800">
-                        <thead>
-                            <tr>
-                                <th class="py-2 px-4" style="width: 20%;">Invoice</th>
-                                <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
-                                <th class="py-2 px-4" style="width: 15%;">Jatuh Tempo</th>
-                                <th class="py-2 px-4" style="width: 25%;">Pelanggan</th>
-                                <th class="py-2 px-4" style="width: 10%;">Sisa</th>
-                                <th class="py-2 px-4" style="width: 12%;">Perintah</th>
-                                <th class="py-2 px-4" style="width: 13%;">Keterangan</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${selectedInvoices.map(inv => `
-                                <tr>
-                                    <td class="py-2 px-4">${inv.invoice}</td>
-                                    <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                    <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
-                                    <td class="py-2 px-4">${inv.pelanggan}</td>
-                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.sisa)}</td>
-                                    <td class="py-2 px-4">${inv.perintah}</td>
-                                    <td class="py-2 px-4">${inv.keterangan}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-
-                // Tambahkan bagian tanda tangan ke konten cetak
-                const finalPrintContent = `
-                    ${printContentHtml}
-                    <div class="signature-section">
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Memberikan,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${giverSignature})</p>
-                        </div>
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Menerima,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${receiverSignature})</p>
-                        </div>
-                    </div>
-                `;
-
-
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write('<html><head><title>Cetak Surat Jalan Tagihan</title>');
-                printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
-                printWindow.document.write('<style>');
-                printWindow.document.write(`
-                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
-                    .print-container { width: 210mm; min-height: 297mm; margin: 0; padding: 0; box-sizing: border-box; page-break-after: always; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; }
-                    h1, h2, h3 { color: #333; }
-                    table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 2px; text-align: left; word-wrap: break-word; }
-                    th { background-color: #f2f2f2; }
-                    .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
-                    .signature-box { width: 45%; }
-                    .signature-line { /* border-bottom: 1px solid #000; */ padding-top: 60px; margin-top: 10px; }
-                    .signature-box p { font-size: 6pt; }
-                    .signature-box p.mt-2 { font-size: 5pt; }
-                    /* Removed .custom-print-header from here */
-                    @media print {
-                        body { -webkit-print-color-adjust: exact; }
-                        @page { margin: 0; size: A4; }
-                        @page :left { margin: 0; }
-                        @page :right { margin: 0; }
-                        @page :first { margin: 0; }
-                    }
-                `);
-                printWindow.document.write('</style></head><body>');
-                printWindow.document.write('<div class="print-container">');
-                printWindow.document.write(finalPrintContent); // Menggunakan konten HTML yang sudah dibuat
-                printWindow.document.write('</div></body></html>');
-                printWindow.document.close();
-                printWindow.print();
-
-                showMessageBox('Surat Jalan Tagihan berhasil dicetak dan disimpan dalam riwayat.');
-                // Reset formulir setelah dicetak
-                setSelectedInvoices([]);
-                setSelectedCollector('');
-            };
-
-            return (
-                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
-                    {/* H2 tag removed */}
-                    {/* <h2 className="text-3xl font-semibold text-teal-400 mb-6">Surat Jalan Tagihan</h2> */}
-
-                    {/* Pencarian dan Pemilihan Invoice */}
-                    <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
-                        <label htmlFor="invoice-search" className="block text-gray-300 text-sm font-bold mb-2">
-                            Cari Invoice (ketik nomor invoice):
-                            </label>
-                        <input
-                            type="text"
-                            id="invoice-search"
-                            className="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
-                            placeholder="Contoh: INV-2023-001"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        {filteredInvoices.length > 0 && (
-                            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-900 rounded-lg border border-gray-600">
-                                {filteredInvoices.map((inv, index) => (
-                                    <div
-                                        key={index}
-                                        className="p-3 cursor-pointer hover:bg-gray-700 border-b border-gray-700 last:border-b-0"
-                                        onClick={() => handleSelectInvoice(inv)}
-                                    >
-                                        <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                        <p className="text-sm text-gray-400">Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Invoice yang Dipilih */}
-                    {selectedInvoices.length > 0 && (
-                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
-                            <h3 className="text-xl font-semibold text-gray-200 mb-3">Detail Invoice Terpilih:</h3>
-                            {selectedInvoices.map((inv) => (
-                                <div key={inv.invoice} className="bg-gray-900 p-4 rounded-lg shadow-md mb-3">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div>
-                                            <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                            <p className="text-sm text-gray-400">Pelanggan: {inv.pelanggan}</p>
-                                            <p className="text-sm text-gray-400">Sisa: Rp {formatNumberWithoutDecimal(inv.sisa)}</p>
-                                            {/* Sales removed from here */}
-                                        </div>
-                                        <button
-                                            className="ml-4 p-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm"
-                                            onClick={() => handleRemoveInvoice(inv)}
-                                        >
-                                            &times;
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                                        <div>
-                                            <label className="block text-gray-400 text-sm mb-1">Perintah:</label>
-                                            <select
-                                                className="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
-                                                value={inv.perintah}
-                                                onChange={(e) => handleInvoiceDetailChange(inv.invoice, 'perintah', e.target.value)}
-                                            >
-                                                <option value="">-- Pilih Perintah --</option>
-                                                <option value="Tagihan">Tagihan</option>
-                                                <option value="Tanda Terima">Tanda Terima</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-gray-400 text-sm mb-1">Keterangan:</label>
-                                            <textarea
-                                                className="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 h-20 resize-y focus:ring-teal-500 focus:border-teal-500"
-                                                value={inv.keterangan}
-                                                onChange={(e) => handleInvoiceDetailChange(inv.invoice, 'keterangan', e.target.value)}
-                                                placeholder="Isi keterangan..."
-                                            ></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Pemilihan Kolektor */}
-                    <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
-                        <h3 className="text-xl font-semibold text-gray-200 mb-3">Pilih Kolektor:</h3>
-                        <div className="flex items-center space-x-4">
-                            <select
-                                className="flex-grow p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
-                                value={selectedCollector}
-                                onChange={(e) => setSelectedCollector(e.target.value)}
-                            >
-                                <option value="">-- Pilih Kolektor --</option>
-                                {collectors.map((collector, index) => (
-                                    <option key={index} value={collector}>{collector}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Tombol Cetak */}
-                    <button
-                        className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white text-xl font-bold rounded-lg shadow-lg transition duration-300 transform hover:scale-105"
-                        onClick={handlePrint}
-                    >
-                        Cetak Surat Jalan Tagihan
-                    </button>
+        <div class="right-panel">
+            <div class="summary-cards">
+                <div class="stat-card">
+                    <div class="stat-label">Total Uang Masuk</div>
+                    <div class="stat-value text-success" id="summaryIncome">Rp 0</div>
                 </div>
-            );
-        };
-
-        // Komponen untuk Pengajuan Faktur Pajak
-        const PengajuanFakturPajak = ({ invoiceData, addPrintHistory, showMessageBox }) => {
-            // State untuk istilah pencarian invoice
-            const [searchTerm, setSearchTerm] = React.useState('');
-            // State untuk invoice yang difilter berdasarkan pencarian
-            const [filteredInvoices, setFilteredInvoices] = React.useState([]);
-            // State untuk invoice yang telah dipilih untuk dicetak
-            const [selectedInvoices, setSelectedInvoices] = React.useState([]);
-            // Ref untuk area yang akan dicetak
-            const printAreaRef = React.useRef(null);
-
-            // Tanda tangan pemberi dan penerima (tetap)
-            const giverSignature = "Hesty";
-            const receiverSignature = "Endah";
-
-            // Efek samping untuk memfilter invoice berdasarkan istilah pencarian
-            React.useEffect(() => {
-                if (searchTerm) {
-                    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-                    const filtered = invoiceData.filter(inv =>
-                        inv.invoice && inv.invoice.toLowerCase().includes(lowerCaseSearchTerm)
-                    );
-                    setFilteredInvoices(filtered);
-                } else {
-                    setFilteredInvoices([]);
-                }
-            }, [searchTerm, invoiceData]);
-
-            // Handler untuk memilih invoice dari hasil pencarian
-            const handleSelectInvoice = (invoice) => {
-                if (!selectedInvoices.some(inv => inv.invoice === invoice.invoice)) {
-                    setSelectedInvoices([...selectedInvoices, { ...invoice, checked: false }]); // Add checked state
-                    setSearchTerm('');
-                    setFilteredInvoices([]);
-                }
-            };
-
-            // Handler untuk menghapus invoice yang dipilih
-            const handleRemoveInvoice = (invoiceToRemove) => {
-                setSelectedInvoices(selectedInvoices.filter(inv => inv.invoice !== invoiceToRemove.invoice));
-            };
-
-            // Handler untuk memperbarui status checkbox pada invoice tertentu
-            const handleCheckInvoice = (invoiceId) => {
-                setSelectedInvoices(prevInvoices =>
-                    prevInvoices.map(inv =>
-                        inv.invoice === invoiceId ? { ...inv, checked: !inv.checked } : inv
-                    )
-                );
-            };
-
-            // Handler untuk proses cetak
-            const handlePrint = () => {
-                if (selectedInvoices.length === 0) {
-                    showMessageBox('Pilih setidaknya satu invoice untuk dicetak.');
-                    return;
-                }
-
-                // Tambahkan ke riwayat cetak
-                addPrintHistory({
-                    id: Date.now(),
-                    type: 'faktur_pajak',
-                    timestamp: new Date().toISOString(),
-                    invoices: selectedInvoices.map(inv => inv.invoice),
-                    giverSignature: giverSignature,
-                    receiverSignature: receiverSignature,
-                    isTandaTerimaEntry: false,
-                    // Simpan detail invoice lengkap untuk modal riwayat
-                    invoiceDetails: selectedInvoices.map(inv => ({
-                        invoice: inv.invoice,
-                        tanggal: inv.tanggal,
-                        pelanggan: inv.pelanggan,
-                        nilai: inv.nilai,
-                        costcentercode: inv.costcentercode, // Simpan costcentercode
-                        checked: inv.checked // Simpan status checked
-                    }))
-                });
-
-                // Siapkan konten untuk dicetak
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write('<html><head><title>Cetak Pengajuan Faktur Pajak</title>');
-                printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
-                printWindow.document.write('<style>');
-                printWindow.document.write(`
-                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
-                    .print-container { width: 210mm; min-height: 297mm; margin: 0; padding: 0; box-sizing: border-box; page-break-after: always; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; }
-                    h1, h2, h3 { color: #333; }
-                    table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 2px; text-align: left; word-wrap: break-word; }
-                    th { background-color: #f2f2f2; }
-                    .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
-                    .signature-box { width: 45%; }
-                    .signature-line { /* border-bottom: 1px solid #000; */ padding-top: 60px; margin-top: 10px; }
-                    .signature-box p { font-size: 6pt; }
-                    .signature-box p.mt-2 { font-size: 5pt; }
-                    /* Removed .custom-print-header from here */
-                    @media print {
-                        body { -webkit-print-color-adjust: exact; }
-                        @page { margin: 0; size: A4; }
-                        @page :left { margin: 0; }
-                        @page :right { margin: 0; }
-                        @page :first { margin: 0; }
-                    }
-                `);
-                printWindow.document.write('</style></head><body>');
-                printWindow.document.write('<div class="print-container">');
-                // Render content directly using JSX to avoid React error #62
-                printWindow.document.write(`
-                    <h1 class="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
-                    <table class="min-w-full bg-white text-gray-800">
-                        <thead>
-                            <tr>
-                                <th class="py-2 px-4" style="width: 25%;">Invoice</th>
-                                <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
-                                <th class="py-2 px-4" style="width: 35%;">Pelanggan</th>
-                                <th class="py-2 px-4" style="width: 20%;">Nilai</th>
-                                <th class="py-2 px-4" style="width: 5%;">Cek</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${selectedInvoices.map((inv, index) => `
-                                <tr key=${index}>
-                                    <td class="py-2 px-4">${inv.invoice}</td>
-                                    <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                    <td class="py-2 px-4">${inv.pelanggan}</td>
-                                    <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                    <td class="py-2 px-4 text-center">
-                                        <input type="checkbox" ${inv.checked ? 'checked' : ''} disabled />
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    <div class="signature-section">
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Mengajukan,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${giverSignature})</p>
-                        </div>
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Menerima,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${receiverSignature})</p>
-                        </div>
-                    </div>
-                `);
-                printWindow.document.write('</div></body></html>');
-                printWindow.document.close();
-                printWindow.print();
-
-                showMessageBox('Pengajuan Faktur Pajak berhasil dicetak dan disimpan dalam riwayat.');
-                // Reset formulir setelah dicetak
-                setSelectedInvoices([]);
-            };
-
-            return (
-                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
-                    {/* H2 tag removed */}
-                    {/* <h2 className="text-3xl font-semibold text-teal-400 mb-6">Pengajuan Faktur Pajak</h2> */}
-
-                    {/* Pencarian dan Pemilihan Invoice */}
-                    <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
-                        <label htmlFor="invoice-search-faktur" className="block text-gray-300 text-sm font-bold mb-2">
-                            Cari Invoice (ketik nomor invoice):
-                        </label>
-                        <input
-                            type="text"
-                            id="invoice-search-faktur"
-                            className="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 text-gray-100 focus:ring-teal-500 focus:border-teal-500"
-                            placeholder="Contoh: INV-2023-001"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        {filteredInvoices.length > 0 && (
-                            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-900 rounded-lg border border-gray-600">
-                                {filteredInvoices.map((inv, index) => (
-                                    <div
-                                        key={index}
-                                        className="p-3 cursor-pointer hover:bg-gray-700 border-b border-gray-700 last:border-b-0"
-                                        onClick={() => handleSelectInvoice(inv)}
-                                    >
-                                        <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                        <p className="text-sm text-gray-400">Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Invoice yang Dipilih */}
-                    {selectedInvoices.length > 0 && (
-                        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-700 bg-opacity-40">
-                            <h3 className="text-xl font-semibold text-gray-200 mb-3">Invoice Terpilih:</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {selectedInvoices.map((inv, index) => (
-                                    <div key={index} className="flex items-center justify-between bg-gray-900 p-3 rounded-lg shadow-md">
-                                        <div>
-                                            <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                            <p className="text-sm text-gray-400">Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
-                                        </div>
-                                        <div className="flex items-center space-x-4">
-                                            <label className="flex items-center text-gray-400">
-                                                <input
-                                                    type="checkbox"
-                                                    className="form-checkbox h-5 w-5 text-teal-500"
-                                                    checked={inv.checked}
-                                                    onChange={() => handleCheckInvoice(inv.invoice)}
-                                                />
-                                                <span className="ml-2 text-sm">Cek</span>
-                                            </label>
-                                            <button
-                                                className="p-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm"
-                                                onClick={() => handleRemoveInvoice(inv)}
-                                            >
-                                                &times;
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Bagian Pratinjau Cetak (disembunyikan, hanya untuk dicetak) */}
-                    <div style={{ display: 'none' }}>
-                        <div ref={printAreaRef} className="print-container">
-                            <h1 className="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
-
-                            <table className="min-w-full bg-white text-gray-800">
-                                <thead>
-                                    <tr>
-                                        <th className="py-2 px-4" style={{width: '25%'}}>Invoice</th>
-                                        <th className="py-2 px-4" style={{width: '15%'}}>Tanggal</th>
-                                        <th className="py-2 px-4" style={{width: '35%'}}>Pelanggan</th>
-                                        <th className="py-2 px-4" style={{width: '20%'}}>Nilai</th>
-                                        <th className="py-2 px-4" style={{width: '5%'}}>Cek</th> {/* Added Cek column */}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {selectedInvoices.map((inv, index) => (
-                                        <tr key={index}>
-                                            <td className="py-2 px-4">${inv.invoice}</td>
-                                            <td className="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                            <td className="py-2 px-4">${inv.pelanggan}</td>
-                                            <td className="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                            <td class="py-2 px-4 text-center">
-                                                <input type="checkbox" checked={inv.checked} disabled />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-
-                            <div className="signature-section">
-                                <div className="signature-box">
-                                    <p className="text-lg font-medium">Yang Mengajukan,</p>
-                                    <div className="signature-line"></div>
-                                    <p className="mt-2">(${giverSignature})</p>
-                                </div>
-                                <div className="signature-box">
-                                    <p className="text-lg font-medium">Yang Menerima,</p>
-                                    <div className="signature-line"></div>
-                                    <p className="mt-2">(${receiverSignature})</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Tombol Cetak */}
-                    <button
-                        className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white text-xl font-bold rounded-lg shadow-lg transition duration-300 transform hover:scale-105"
-                        onClick={handlePrint}
-                    >
-                        Cetak Pengajuan Faktur Pajak
-                    </button>
+                <div class="stat-card">
+                    <div class="stat-label">Total Uang Keluar</div>
+                    <div class="stat-value text-danger" id="summaryExpense">Rp 0</div>
                 </div>
-            );
-        };
-
-        // Komponen baru untuk Tanda Terima
-        const TandaTerimaForm = ({ selectedInvoices, addPrintHistory, showMessageBox, selectedCollector }) => {
-            const tandaTerimaInvoices = selectedInvoices.filter(inv => inv.perintah === 'Tanda Terima');
-            const printAreaRef = React.useRef(null);
-
-            // Tanda tangan pemberi dan penerima untuk Tanda Terima
-            const giverSignature = selectedCollector; // Yang Memberikan adalah Kolektor
-            const receiverSignature = ""; // Yang Menerima dikosongkan
-
-            const handlePrintTandaTerima = () => {
-                if (tandaTerimaInvoices.length === 0) {
-                    showMessageBox('Tidak ada invoice dengan perintah "Tanda Terima" yang dipilih.');
-                    return;
-                }
-                if (!selectedCollector) {
-                    showMessageBox('Pilih kolektor terlebih dahulu di tab Surat Jalan Tagihan.');
-                    return;
-                }
-
-                // Tambahkan ke riwayat cetak
-                addPrintHistory({
-                    id: Date.now(),
-                    type: 'surat_jalan', // Tetap sebagai surat_jalan, tapi tandai sebagai Tanda Terima
-                    timestamp: new Date().toISOString(),
-                    collector: selectedCollector,
-                    giverSignature: giverSignature, // Gunakan giverSignature yang baru
-                    receiverSignature: receiverSignature, // Gunakan receiverSignature yang baru
-                    isTandaTerimaEntry: true, // Tandai sebagai entri Tanda Terima
-                    invoiceDetails: tandaTerimaInvoices.map(inv => ({
-                        invoice: inv.invoice,
-                        tanggal: inv.tanggal,
-                        jatuhTempo: inv.jatuhTempo,
-                        sales: inv.sales, // Tetap simpan sales di history, hanya tidak ditampilkan di form/cetak
-                        pelanggan: inv.pelanggan,
-                        nilai: inv.nilai,
-                        pembayaran: inv.pembayaran, // Tetap simpan pembayaran di history
-                        sisa: inv.sisa, // Tetap simpan sisa di history
-                        perintah: inv.perintah, // Perintah tetap disimpan di history
-                        keterangan: inv.keterangan,
-                        costcentercode: inv.costcentercode // Simpan costcentercode
-                    }))
-                });
-
-                // Siapkan konten untuk dicetak (dikelompokkan berdasarkan pelanggan)
-                const printContentHtml = `
-                    <h1 class="text-2xl font-bold text-center mb-4">TANDA TERIMA</h1>
-                    <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${selectedCollector}</span></p>
-                `;
-
-                let tablesHtml = '';
-                const groupedByPelanggan = tandaTerimaInvoices.reduce((acc, invoice) => {
-                    const pelanggan = invoice.pelanggan || 'Tanpa Pelanggan';
-                    if (!acc[pelanggan]) {
-                        acc[pelanggan] = [];
-                    }
-                    acc[pelanggan].push(invoice);
-                    return acc;
-                }, {});
-
-                for (const pelangganName in groupedByPelanggan) {
-                    tablesHtml += `<h2 class="text-xl font-semibold mt-6 mb-3">Pelanggan: ${pelangganName}</h2>`;
-                    tablesHtml += `<table class="min-w-full bg-white text-gray-800">
-                        <thead>
-                            <tr>
-                                <th class="py-2 px-4" style="width: 15%;">Invoice</th>
-                                <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
-                                <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
-                                <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
-                                <th class="py-2 px-4" style="width: 10%;">Nilai</th>
-                                <th class="py-2 px-4" style="width: 25%;">Keterangan</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
-                    groupedByPelanggan[pelangganName].forEach(inv => {
-                        tablesHtml += `
-                            <tr>
-                                <td class="py-2 px-4">${inv.invoice}</td>
-                                <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
-                                <td class="py-2 px-4">${inv.pelanggan}</td>
-                                <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                <td class="py-2 px-4">${inv.keterangan}</td>
-                            </tr>`;
-                    });
-                    tablesHtml += `</tbody></table>`;
-                }
-
-                // Tambahkan bagian tanda tangan ke konten cetak
-                const finalPrintContent = `
-                    ${printContentHtml}
-                    ${tablesHtml}
-                    <div class="signature-section">
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Memberikan,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${giverSignature})</p>
-                        </div>
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Menerima,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${receiverSignature || '____________________'})</p>
-                        </div>
-                    </div>
-                `;
-
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write('<html><head><title>Cetak Tanda Terima</title>');
-                printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">');
-                printWindow.document.write('<style>');
-                printWindow.document.write(`
-                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
-                    .print-container { width: 210mm; min-height: 297mm; margin: 0; padding: 0; box-sizing: border-box; page-break-after: always; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; }
-                    h1, h2, h3 { color: #333; }
-                    table { width: auto; border-collapse: collapse; margin-top: 20px; table-layout: auto; font-size: 8pt; }
-                    th, td { border: 1px solid #ddd; padding: 2px; text-align: left; word-wrap: break-word; }
-                    th { background-color: #f2f2f2; }
-                    .signature-section { display: flex; justify-content: space-around; margin-top: 50px; text-align: center; }
-                    .signature-box { width: 45%; }
-                    .signature-line { /* border-bottom: 1px solid #000; */ padding-top: 60px; margin-top: 10px; }
-                    .signature-box p { font-size: 6pt; }
-                    .signature-box p.mt-2 { font-size: 5pt; }
-                    /* Removed .custom-print-header from here */
-                    @media print {
-                        body { -webkit-print-color-adjust: exact; }
-                        @page { margin: 0; size: A4; }
-                        @page :left { margin: 0; }
-                        @page :right { margin: 0; }
-                        @page :first { margin: 0; }
-                    }
-                `);
-                printWindow.document.write('</style></head><body>');
-                printWindow.document.write('<div class="print-container">');
-                printWindow.document.write(finalPrintContent);
-                printWindow.document.write('</div></body></html>');
-                printWindow.document.close();
-                printWindow.print();
-
-                showMessageBox('Tanda Terima berhasil dicetak dan disimpan dalam riwayat.');
-            };
-
-            return (
-                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
-                    {/* H2 tag removed */}
-                    {/* <h2 className="text-3xl font-semibold text-teal-400 mb-6">Cetak Tanda Terima</h2> */}
-                    {!selectedCollector && (
-                        <p className="text-yellow-400 text-center mb-4">
-                            Pilih kolektor di tab "Surat Jalan Tagihan" untuk mengaktifkan cetak Tanda Terima.
-                        </p>
-                    )}
-                    {tandaTerimaInvoices.length === 0 ? (
-                        <p className="text-gray-400 text-center">
-                            Tidak ada invoice yang dipilih dengan perintah "Tanda Terima".
-                            Pilih invoice di tab "Surat Jalan Tagihan" dan atur perintahnya menjadi "Tanda Terima".
-                            <br/>
-                            Invoice yang dipilih dengan perintah "Tanda Terima" akan muncul di sini secara otomatis.
-                        </p>
-                    ) : (
-                        <div>
-                            <p className="text-gray-300 mb-4">
-                                Ada {tandaTerimaInvoices.length} invoice dengan perintah "Tanda Terima" yang siap dicetak.
-                            </p>
-                            {Object.entries(tandaTerimaInvoices.reduce((acc, invoice) => {
-                                const pelanggan = invoice.pelanggan || 'Tanpa Pelanggan';
-                                if (!acc[pelanggan]) {
-                                    acc[pelanggan] = [];
-                                }
-                                acc[pelanggan].push(invoice);
-                                return acc;
-                            }, {})).map(([pelangganName, invoicesForPelanggan]) => (
-                                <div key={pelangganName} className="mb-6 bg-gray-800 p-4 rounded-lg shadow-inner border border-gray-700">
-                                    <h4 className="text-xl font-semibold text-teal-300 mb-3">Pelanggan: {pelangganName}</h4>
-                                    {invoicesForPelanggan.map((inv) => (
-                                        <div key={inv.invoice} className="bg-gray-900 p-4 rounded-lg shadow-md mb-3">
-                                            <div>
-                                                <p className="font-medium text-teal-300">{inv.invoice}</p>
-                                                <p className="text-sm text-gray-400">Tanggal: {formatDate(inv.tanggal)}</p>
-                                                <p className="text-sm text-gray-400">Jatuh Tempo: {formatDate(inv.jatuhTempo)}</p>
-                                                <p className="text-sm text-gray-400">Pelanggan: {inv.pelanggan}</p>
-                                                <p className="text-sm text-gray-400">Nilai: Rp {formatNumberWithoutDecimal(inv.nilai)}</p>
-                                                <p className="text-sm text-gray-400">Keterangan: {inv.keterangan}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
-                            <button
-                                className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white text-xl font-bold rounded-lg shadow-lg transition duration-300 transform hover:scale-105"
-                                onClick={handlePrintTandaTerima}
-                                disabled={!selectedCollector}
-                            >
-                                Cetak Tanda Terima
-                            </button>
-                        </div>
-                    )}
+                <div class="stat-card" style="background: #eff6ff; border-color: #bfdbfe;">
+                    <div class="stat-label">Saldo Akhir</div>
+                    <div class="stat-value text-primary" id="summaryBalance">Rp 0</div>
                 </div>
-            );
-        };
+            </div>
 
-
-        // Komponen untuk Riwayat Cetak
-        const PrintHistory = ({ printHistory, invoiceData }) => {
-            const [showHistoryModal, setShowHistoryModal] = React.useState(false);
-            const [historyModalContent, setHistoryModalContent] = React.useState('');
-
-            // Fungsi untuk membuat konten HTML untuk modal riwayat
-            const generateModalContent = (entry) => {
-                let contentHtml = ``; // Removed custom header here
-                const invoices = entry.invoiceDetails || []; // Gunakan invoiceDetails yang tersimpan
-
-                if (entry.type === 'surat_jalan') {
-                    if (entry.isTandaTerimaEntry) { // Jika ini adalah entri Tanda Terima
-                        const groupedByPelanggan = invoices.reduce((acc, invoice) => {
-                            const pelanggan = invoice.pelanggan || 'Tanpa Pelanggan';
-                            if (!acc[pelanggan]) {
-                                acc[pelanggan] = [];
-                            }
-                            acc[pelanggan].push(invoice);
-                            return acc;
-                        }, {});
-
-                        contentHtml += `
-                            <h1 class="text-2xl font-bold text-center mb-4">TANDA TERIMA</h1>
-                            <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${entry.collector}</span></p>
-                        `;
-
-                        for (const pelangganName in groupedByPelanggan) {
-                            contentHtml += `<h2 class="text-xl font-semibold mt-6 mb-3">Pelanggan: ${pelangganName}</h2>`;
-                            contentHtml += `<table class="min-w-full bg-white text-gray-800">
-                                <thead>
-                                    <tr>
-                                        <th class="py-2 px-4" style="width: 15%;">Invoice</th>
-                                        <th class="py-2 px-4" style="width: 10%;">Tanggal</th>
-                                                                                <th class="py-2 px-4" style="width: 10%;">Jatuh Tempo</th>
-                                        <th class="py-2 px-4" style="width: 20%;">Pelanggan</th>
-                                        <th class="py-2 px-4" style="width: 10%;">Nilai</th>
-                                        <th class="py-2 px-4" style="width: 25%;">Keterangan</th>
-                                    </tr>
-                                </thead>
-                                <tbody>`;
-                            groupedByPelanggan[pelangganName].forEach(inv => {
-                                contentHtml += `
-                                    <tr>
-                                        <td class="py-2 px-4">${inv.invoice}</td>
-                                        <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                        <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
-                                        <td class="py-2 px-4">${inv.pelanggan}</td>
-                                        <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                        <td class="py-2 px-4">${inv.keterangan}</td>
-                                    </tr>`;
-                            });
-                            contentHtml += `</tbody></table>`;
-                        }
-
-                    } else { // Jika entri Tagihan standar
-                        contentHtml += `
-                            <h1 class="text-2xl font-bold text-center mb-4">SURAT JALAN TAGIHAN</h1>
-                            <p class="text-lg text-center mb-6">Kolektor: <span class="font-semibold">${entry.collector}</span></p>
-                            <table class="min-w-full bg-white text-gray-800">
-                                <thead>
-                                    <tr>
-                                        <th class="py-2 px-4" style="width: 20%;">Invoice</th>
-                                        <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
-                                        <th class="py-2 px-4" style="width: 15%;">Jatuh Tempo</th>
-                                        <th class="py-2 px-4" style="width: 25%;">Pelanggan</th>
-                                        <th class="py-2 px-4" style="width: 10%;">Sisa</th>
-                                        <th class="py-2 px-4" style="width: 12%;">Perintah</th>
-                                        <th class="py-2 px-4" style="width: 13%;">Keterangan</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${invoices.map(inv => `
-                                        <tr>
-                                            <td class="py-2 px-4">${inv.invoice}</td>
-                                            <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                            <td class="py-2 px-4">${formatDate(inv.jatuhTempo)}</td>
-                                            <td class="py-2 px-4">${inv.pelanggan}</td>
-                                            <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.sisa)}</td>
-                                            <td class="py-2 px-4">${inv.perintah}</td>
-                                            <td class="py-2 px-4">${inv.keterangan}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        `;
-                    }
-                } else if (entry.type === 'faktur_pajak') {
-                    contentHtml += `
-                        <h1 class="text-2xl font-bold text-center mb-4">PENGAJUAN FAKTUR PAJAK</h1>
-                        <table class="min-w-full bg-white text-gray-800">
+            <div class="dashboard-grid">
+                <div class="table-section">
+                    <div class="table-header income-header">
+                        <h3>Rekap Uang Masuk (Anggaran)</h3>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table id="tableIncome">
                             <thead>
                                 <tr>
-                                    <th class="py-2 px-4" style="width: 25%;">Invoice</th>
-                                    <th class="py-2 px-4" style="width: 15%;">Tanggal</th>
-                                    <th class="py-2 px-4" style="width: 35%;">Pelanggan</th>
-                                    <th class="py-2 px-4" style="width: 20%;">Nilai</th>
-                                    <th class="py-2 px-4" style="width: 5%;">Cek</th>
+                                    <th>Tanggal</th>
+                                    <th>Bahan Baku</th>
+                                    <th>Jml</th>
+                                    <th>Satuan</th>
+                                    <th>Harga</th>
+                                    <th class="col-money">Total</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                ${invoices.map(inv => `
-                                    <tr>
-                                        <td class="py-2 px-4">${inv.invoice}</td>
-                                        <td class="py-2 px-4">${formatDate(inv.tanggal)}</td>
-                                        <td class="py-2 px-4">${inv.pelanggan}</td>
-                                        <td class="py-2 px-4">Rp ${formatNumberWithoutDecimal(inv.nilai)}</td>
-                                        <td class="py-2 px-4 text-center">
-                                            <input type="checkbox" ${inv.checked ? 'checked' : ''} disabled />
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
+                            <tbody></tbody>
                         </table>
-                    `;
+                    </div>
+                </div>
+
+                <div class="table-section">
+                    <div class="table-header expense-header">
+                        <h3>Rekap Uang Keluar & Pergerakan Saldo</h3>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table id="tableExpense">
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Bahan Baku</th>
+                                    <th>Jml</th>
+                                    <th>Satuan</th>
+                                    <th>Harga</th>
+                                    <th class="col-money">Uang Keluar</th>
+                                    <th class="col-money">Sisa Saldo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GLOBAL VARIABLES ---
+        let currentTab = 'income';
+        
+        // Data Transaksi
+        let incomeTransactions = [];
+        let expenseTransactions = [];
+        
+        // Data Master (Dari Import Excel)
+        let masterIncomeData = [];  // { name, price }
+        let masterExpenseData = []; // { name, unit, price }
+
+        let incomeRowCount = 0;
+        let expenseRowCount = 0;
+
+        // --- INIT ---
+        window.onload = function() {
+            addNewRow(); 
+            updateDashboard();
+        };
+
+        // --- EXCEL IMPORT LOGIC (CORE UPDATE) ---
+        document.getElementById('excelFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                
+                // 1. Proses Sheet [Uang Masuk]
+                if (workbook.Sheets["Uang Masuk"]) {
+                    const sheet = workbook.Sheets["Uang Masuk"];
+                    // Convert to JSON array of arrays (header: 1)
+                    const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
+                    
+                    // Logic: Kolom A=0 (Nama), Kolom B=1 (Harga). Mulai baris ke-2 (index 1)
+                    masterIncomeData = rawData.slice(1).map(row => ({
+                        name: row[0],
+                        price: parseFloat(row[1]) || 0
+                    })).filter(item => item.name); // Hapus baris kosong
                 }
 
-                // Tambahkan bagian tanda tangan ke konten cetak modal
-                contentHtml += `
-                    <div class="signature-section">
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Memberikan,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${entry.giverSignature})</p>
-                        </div>
-                        <div class="signature-box">
-                            <p class="text-lg font-medium">Yang Menerima,</p>
-                            <div class="signature-line"></div>
-                            <p class="mt-2">(${entry.receiverSignature || '____________________'})</p>
-                        </div>
+                // 2. Proses Sheet [Uang Keluar]
+                if (workbook.Sheets["Uang Keluar"]) {
+                    const sheet = workbook.Sheets["Uang Keluar"];
+                    const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
+                    
+                    // Logic: Kolom A=0 (Nama), Kolom B=1 (Satuan), Kolom C=2 (Harga)
+                    masterExpenseData = rawData.slice(1).map(row => ({
+                        name: row[0],
+                        unit: row[1] || '-',
+                        price: parseFloat(row[2]) || 0
+                    })).filter(item => item.name);
+                }
+
+                // UI Feedback
+                if(masterIncomeData.length > 0 || masterExpenseData.length > 0) {
+                    document.getElementById('import-alert').style.display = 'none';
+                    alert(`Sukses Import!\n${masterIncomeData.length} Item Masuk\n${masterExpenseData.length} Item Keluar`);
+                    
+                    // Reset Input Forms dengan data baru
+                    document.getElementById('incomeRows').innerHTML = '';
+                    document.getElementById('expenseRows').innerHTML = '';
+                    incomeRowCount = 0; expenseRowCount = 0;
+                    addNewRow(); // Tambah baris pertama dengan data baru
+                } else {
+                    alert("Gagal membaca data. Pastikan nama Sheet: 'Uang Masuk' dan 'Uang Keluar'.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // --- TAB SWITCHING ---
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            document.getElementById('income-view').style.display = tab === 'income' ? 'block' : 'none';
+            document.getElementById('expense-view').style.display = tab === 'expense' ? 'block' : 'none';
+            
+            const container = tab === 'income' ? document.getElementById('incomeRows') : document.getElementById('expenseRows');
+            if (container.children.length === 0) addNewRow();
+        }
+
+        // --- FORM INPUT LOGIC ---
+        function addNewRow() {
+            const isIncome = currentTab === 'income';
+            const container = document.getElementById(isIncome ? 'incomeRows' : 'expenseRows');
+            const count = isIncome ? ++incomeRowCount : ++expenseRowCount;
+            const rowId = `${currentTab}-row-${count}`;
+
+            // Generate Dropdown Options berdasarkan Data Master yang diimport
+            const masterList = isIncome ? masterIncomeData : masterExpenseData;
+            let optionsHTML = '<option value="">-- Pilih Bahan Baku --</option>';
+            
+            if (masterList.length === 0) {
+                optionsHTML += `<option value="" disabled>Data kosong (Import Excel dulu)</option>`;
+            } else {
+                masterList.forEach((item, idx) => {
+                    optionsHTML += `<option value="${idx}">${item.name}</option>`;
+                });
+            }
+            // Opsi manual tetap ada untuk jaga-jaga
+            optionsHTML += `<option value="custom" style="color:blue; font-weight:bold;">+ Input Manual Lainnya</option>`;
+
+            const div = document.createElement('div');
+            div.className = 'form-card';
+            div.id = rowId;
+            div.innerHTML = `
+                <div class="card-header">
+                    <span class="row-badge">Input #${count}</span>
+                    <button class="btn btn-danger" style="font-size:0.7rem; padding: 2px 8px;" onclick="removeRow('${rowId}')">Hapus</button>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Tanggal</label>
+                        <input type="date" class="form-control inp-date" required>
                     </div>
+                    <div class="form-group">
+                        <label>Bahan Baku (Dari Excel)</label>
+                        <select class="form-control inp-item" onchange="autoFillItem(this, ${isIncome})">
+                            ${optionsHTML}
+                        </select>
+                        <input type="text" class="form-control inp-custom-name" style="display:none; margin-top:5px;" placeholder="Nama Item Manual...">
+                    </div>
+                    <div class="form-group">
+                        <label>Satuan</label>
+                        <input type="text" class="form-control inp-unit" readonly placeholder="-">
+                    </div>
+                    <div class="form-group">
+                        <label>Harga Satuan</label>
+                        <input type="number" class="form-control inp-price" readonly placeholder="0">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Jumlah (Qty)</label>
+                        <input type="number" class="form-control inp-qty" oninput="calcSubtotal(this)" placeholder="Masukkan jumlah...">
+                    </div>
+                    <div class="form-group full-width" style="text-align: right;">
+                        <label>Total</label>
+                        <span class="row-total" style="font-weight:bold; font-size:1.1rem; color:var(--primary);">Rp 0</span>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+            div.querySelector('.inp-date').valueAsDate = new Date();
+        }
+
+        function removeRow(id) { document.getElementById(id).remove(); }
+
+        // Logic Auto Fill dari Data Excel
+        function autoFillItem(selectElem, isIncome) {
+            const card = selectElem.closest('.form-card');
+            const customInput = card.querySelector('.inp-custom-name');
+            const priceInput = card.querySelector('.inp-price');
+            const unitInput = card.querySelector('.inp-unit');
+            const qtyInput = card.querySelector('.inp-qty');
+
+            const val = selectElem.value;
+
+            if (val === 'custom') {
+                // Mode Manual: Buka semua lock
+                customInput.style.display = 'block';
+                customInput.focus();
+                priceInput.readOnly = false;
+                priceInput.value = '';
+                unitInput.readOnly = false;
+                unitInput.value = '';
+            } else if (val !== '') {
+                // Mode Excel: Isi otomatis & Lock
+                customInput.style.display = 'none';
+                
+                const list = isIncome ? masterIncomeData : masterExpenseData;
+                const data = list[val]; // Ambil data dari array master berdasarkan index
+
+                // Isi Harga
+                priceInput.value = data.price;
+                priceInput.readOnly = true; // Lock harga sesuai excel
+
+                // Isi Satuan
+                if (isIncome) {
+                    unitInput.value = "Porsi"; // Default anggaran
+                } else {
+                    unitInput.value = data.unit; // Dari Kolom B Excel Uang Keluar
+                }
+                unitInput.readOnly = true; // Lock satuan
+                
+                // Fokus ke field Qty agar user langsung isi jumlah
+                qtyInput.focus();
+            } else {
+                customInput.style.display = 'none';
+            }
+            calcSubtotal(selectElem);
+        }
+
+        function calcSubtotal(elem) {
+            const card = elem.closest('.form-card');
+            const price = parseFloat(card.querySelector('.inp-price').value) || 0;
+            const qty = parseFloat(card.querySelector('.inp-qty').value) || 0;
+            const total = price * qty;
+            card.querySelector('.row-total').textContent = formatRupiah(total);
+        }
+
+        // --- SAVE DATA ---
+        function saveData() {
+            const isIncome = currentTab === 'income';
+            const containerId = isIncome ? 'incomeRows' : 'expenseRows';
+            const rows = document.querySelectorAll(`#${containerId} .form-card`);
+            
+            let newTx = [];
+            rows.forEach(row => {
+                const date = row.querySelector('.inp-date').value;
+                const select = row.querySelector('.inp-item');
+                let name = "";
+                
+                if (select.value === 'custom') name = row.querySelector('.inp-custom-name').value;
+                else if (select.value !== "") name = select.options[select.selectedIndex].text;
+
+                const unit = row.querySelector('.inp-unit').value;
+                const price = parseFloat(row.querySelector('.inp-price').value) || 0;
+                const qty = parseFloat(row.querySelector('.inp-qty').value) || 0;
+                const total = price * qty;
+
+                if (name && qty > 0) {
+                    newTx.push({ date, name, unit, price, qty, total });
+                }
+            });
+
+            if (newTx.length === 0) return alert("Isi data minimal satu baris.");
+
+            if (isIncome) incomeTransactions.push(...newTx);
+            else expenseTransactions.push(...newTx);
+
+            // Reset Form
+            document.getElementById(containerId).innerHTML = '';
+            isIncome ? incomeRowCount = 0 : expenseRowCount = 0;
+            addNewRow(); 
+            updateDashboard();
+            alert("Data tersimpan!");
+        }
+
+        // --- DASHBOARD UPDATE ---
+        function updateDashboard() {
+            // Sort Date
+            incomeTransactions.sort((a,b) => new Date(a.date) - new Date(b.date));
+            expenseTransactions.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            // 1. Render Table Income
+            const tbIncome = document.querySelector('#tableIncome tbody');
+            tbIncome.innerHTML = '';
+            let totalIncome = 0;
+
+            incomeTransactions.forEach(t => {
+                totalIncome += t.total;
+                tbIncome.innerHTML += `
+                    <tr>
+                        <td>${formatDate(t.date)}</td>
+                        <td>${t.name}</td>
+                        <td>${t.qty}</td>
+                        <td>${t.unit}</td>
+                        <td>${formatRupiah(t.price)}</td>
+                        <td class="col-money">${formatRupiah(t.total)}</td>
+                    </tr>
                 `;
-                return contentHtml;
-            };
+            });
 
-            // Handler untuk menampilkan modal riwayat
-            const handleViewHistoryItem = (entry) => {
-                setHistoryModalContent(generateModalContent(entry));
-                setShowHistoryModal(true);
-            };
+            if(totalIncome > 0) {
+                tbIncome.innerHTML += `
+                    <tr class="row-total-income">
+                        <td colspan="5" style="text-align:right">Total Anggaran Masuk</td>
+                        <td class="col-money">${formatRupiah(totalIncome)}</td>
+                    </tr>
+                `;
+            }
 
-            return (
-                <div className="p-6 bg-gray-800 bg-opacity-70 rounded-lg shadow-inner">
-                    <h2 className="text-3xl font-semibold text-teal-400 mb-6">Riwayat Cetak</h2>
-                    {printHistory.length === 0 ? (
-                        <p className="text-gray-400 text-center">Belum ada riwayat cetak.</p>
-                    ) : (
-                        <div className="space-y-4">
-                            {printHistory.map((entry) => (
-                                <div
-                                    key={entry.id}
-                                    className="bg-gray-700 p-4 rounded-lg shadow-md border border-gray-600 cursor-pointer hover:bg-gray-600 transition duration-200"
-                                    onClick={() => handleViewHistoryItem(entry)}
-                                >
-                                    <p className="text-lg font-semibold text-teal-300 mb-2">
-                                        {entry.type === 'surat_jalan' ? 'Surat Jalan Tagihan' : 'Pengajuan Faktur Pajak'}
-                                        {entry.isTandaTerimaEntry && ' (Tanda Terima)'}
-                                    </p>
-                                    <p className="text-gray-300 text-sm">
-                                        Tanggal Cetak: {new Date(entry.timestamp).toLocaleString('id-ID')}
-                                    </p>
-                                    {entry.collector && (
-                                        <p className="text-gray-300 text-sm">Kolektor: {entry.collector}</p>
-                                    )}
-                                    {/* Menampilkan invoiceDetails.map(inv => inv.invoice) untuk memastikan hanya nomor invoice yang ditampilkan */}
-                                    <p className="text-gray-300 text-sm">Invoice(s): {entry.invoiceDetails ? entry.invoiceDetails.map(inv => inv.invoice).join(', ') : 'N/A'}</p>
-                                    <p className="text-gray-300 text-sm">Pemberi: {entry.giverSignature}</p>
-                                    <p className="text-gray-300 text-sm">Penerima: {entry.receiverSignature || '____________________'}</p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+            // 2. Render Table Expense & Running Balance
+            const tbExpense = document.querySelector('#tableExpense tbody');
+            tbExpense.innerHTML = '';
+            let totalExpense = 0;
+            let currentBalance = totalIncome;
 
-                    {/* Modal untuk menampilkan detail riwayat */}
-                    {showHistoryModal && (
-                        <Modal onClose={() => setShowHistoryModal(false)}>
-                            <div className="bg-white p-6 rounded-lg text-gray-800 max-h-[80vh] overflow-y-auto">
-                                <div dangerouslySetInnerHTML={{ __html: historyModalContent }} />
-                            </div>
-                        </Modal>
-                    )}
-                </div>
-            );
+            // Baris Saldo Awal
+            tbExpense.innerHTML += `
+                <tr class="row-opening-balance">
+                    <td colspan="6" style="text-align:right">Saldo Awal (Total Masuk)</td>
+                    <td class="col-money">${formatRupiah(currentBalance)}</td>
+                </tr>
+            `;
+
+            expenseTransactions.forEach(t => {
+                totalExpense += t.total;
+                currentBalance -= t.total;
+                tbExpense.innerHTML += `
+                    <tr>
+                        <td>${formatDate(t.date)}</td>
+                        <td>${t.name}</td>
+                        <td>${t.qty}</td>
+                        <td>${t.unit}</td>
+                        <td>${formatRupiah(t.price)}</td>
+                        <td class="col-money text-danger">${formatRupiah(t.total)}</td>
+                        <td class="col-money" style="font-weight:bold;">${formatRupiah(currentBalance)}</td>
+                    </tr>
+                `;
+            });
+
+            // Update Cards
+            document.getElementById('summaryIncome').textContent = formatRupiah(totalIncome);
+            document.getElementById('summaryExpense').textContent = formatRupiah(totalExpense);
+            document.getElementById('summaryBalance').textContent = formatRupiah(currentBalance);
+        }
+
+        // --- UTILS ---
+        function formatRupiah(n) { return new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits:0}).format(n); }
+        function formatDate(d) { return new Date(d).toLocaleDateString('id-ID', {day:'numeric', month:'short'}); }
+
+        // --- EXPORT ---
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+            
+            // Sheet Laporan
+            let balance = 0;
+            const reportData = [
+                ['TANGGAL', 'TIPE', 'DESKRIPSI', 'QTY', 'SATUAN', 'HARGA', 'DEBET (MASUK)', 'KREDIT (KELUAR)', 'SALDO']
+            ];
+            
+            // Gabung data & urutkan untuk laporan kronologis
+            let allTx = [
+                ...incomeTransactions.map(t => ({...t, type: 'MASUK'})),
+                ...expenseTransactions.map(t => ({...t, type: 'KELUAR'}))
+            ].sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            allTx.forEach(t => {
+                let debet = t.type === 'MASUK' ? t.total : 0;
+                let kredit = t.type === 'KELUAR' ? t.total : 0;
+                balance += (debet - kredit);
+                reportData.push([
+                    t.date, t.type, t.name, t.qty, t.unit, t.price, debet, kredit, balance
+                ]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(reportData);
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan Keuangan");
+            XLSX.writeFile(wb, "MBG_Suci_Laporan.xlsx");
+        }
+
+        // --- SPLIT SCREEN ---
+        const resizer = document.getElementById('resizer');
+        const leftPanel = document.getElementById('leftPanel');
+        let x = 0, w = 0;
+        
+        resizer.addEventListener('mousedown', (e) => {
+            x = e.clientX;
+            w = parseInt(window.getComputedStyle(leftPanel).width, 10);
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            resizer.classList.add('active');
+        });
+
+        const mouseMoveHandler = (e) => leftPanel.style.width = `${w + e.clientX - x}px`;
+        const mouseUpHandler = () => {
+            document.removeEventListener('mousemove', mouseMoveHandler);
+            document.removeEventListener('mouseup', mouseUpHandler);
+            resizer.classList.remove('active');
         };
 
-        // Komponen Modal Generik
-        const Modal = ({ children, onClose }) => {
-            return (
-                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-                    <div className="bg-gray-800 p-6 rounded-lg shadow-2xl relative w-full max-w-3xl border border-gray-700">
-                        <button
-                            className="absolute top-3 right-3 text-gray-400 hover:text-gray-100 text-2xl font-bold"
-                            onClick={onClose}
-                        >
-                            &times;
-                        </button>
-                        {children}
-                    </div>
-                </div>
-            );
-        };
-
-        // Render komponen App ke div dengan id 'root'
-        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
