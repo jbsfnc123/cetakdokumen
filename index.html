@@ -737,30 +737,59 @@
         // --- EXPORT LAPORAN ---
         function exportToExcel() {
             const wb = XLSX.utils.book_new();
-            let balance = 0;
-            const reportData = [['TANGGAL', 'TIPE', 'DESKRIPSI', 'QTY', 'SATUAN', 'HARGA', 'DEBET (MASUK)', 'KREDIT (KELUAR)', 'SALDO']];
-            
-            let allTx = [
-                ...incomeTransactions.map(t => ({...t, type: 'MASUK'})),
-                ...expenseTransactions.map(t => ({...t, type: 'KELUAR'}))
-            ].sort((a,b) => new Date(a.date) - new Date(b.date));
 
-            allTx.forEach(t => {
-                let debet = t.type === 'MASUK' ? t.total : 0;
-                let kredit = t.type === 'KELUAR' ? t.total : 0;
-                balance += (debet - kredit);
-                reportData.push([t.date, t.type, t.name, t.qty, t.unit, t.price, debet, kredit, balance]);
+            // --- SHEET 1: Uang Masuk ---
+            // Urutkan data berdasarkan tanggal
+            incomeTransactions.sort((a,b) => new Date(a.date) - new Date(b.date));
+            
+            let totalIncome = 0;
+            const incomeSheetData = [
+                ['Tanggal', 'Bahan Baku', 'Qty', 'Satuan', 'Harga', 'Total'] // Header
+            ];
+
+            incomeTransactions.forEach(t => {
+                totalIncome += t.total;
+                incomeSheetData.push([
+                    t.date, t.name, t.qty, t.unit, t.price, t.total
+                ]);
             });
 
-            const ws = XLSX.utils.aoa_to_sheet(reportData);
-            XLSX.utils.book_append_sheet(wb, ws, "Laporan Keuangan");
-            XLSX.writeFile(wb, "MBG_Suci_Laporan.xlsx");
+            // Footer Total
+            incomeSheetData.push(['', '', '', '', 'Total Masuk', totalIncome]);
+
+            const wsIncome = XLSX.utils.aoa_to_sheet(incomeSheetData);
+            XLSX.utils.book_append_sheet(wb, wsIncome, "Rekap Uang Masuk");
+
+
+            // --- SHEET 2: Uang Keluar ---
+            // Urutkan data berdasarkan tanggal
+            expenseTransactions.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            let currentBalance = totalIncome; // Start from Total Income
+            const expenseSheetData = [
+                ['Tanggal', 'Bahan Baku', 'Qty', 'Satuan', 'Harga', 'Uang Keluar', 'Sisa Saldo'] // Header
+            ];
+
+            // Row Saldo Awal
+            expenseSheetData.push(['', 'Saldo Awal (Total Masuk)', '', '', '', '', currentBalance]);
+
+            expenseTransactions.forEach(t => {
+                currentBalance -= t.total;
+                expenseSheetData.push([
+                    t.date, t.name, t.qty, t.unit, t.price, t.total, currentBalance
+                ]);
+            });
+
+            const wsExpense = XLSX.utils.aoa_to_sheet(expenseSheetData);
+            XLSX.utils.book_append_sheet(wb, wsExpense, "Rekap Uang Keluar");
+
+            XLSX.writeFile(wb, "MBG_Suci_Laporan_Lengkap.xlsx");
         }
 
         // --- SPLIT SCREEN RESIZER (FIXED) ---
         const resizerEl = document.getElementById('resizer');
         const leftPanelEl = document.getElementById('leftPanel');
-        let startX = 0, startWidth = 0; // Renamed from x, w to avoid conflicts
+        let startX = 0, startWidth = 0; 
         
         resizerEl.addEventListener('mousedown', (e) => {
             startX = e.clientX; 
