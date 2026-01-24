@@ -3,745 +3,586 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MBG Suci - Sistem Keuangan (Database)</title>
-    <!-- Library SheetJS untuk Excel -->
+    <title>MBG Suci - Mobile System</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- Library Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --bg-body: #f3f4f6;
-            --bg-panel: #ffffff;
-            --text-main: #1f2937;
-            --text-muted: #6b7280;
-            --border: #e5e7eb;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
+            --primary: #2563eb; --primary-hover: #1d4ed8;
+            --bg-body: #f3f4f6; --bg-panel: #ffffff;
+            --text-main: #1f2937; --text-muted: #6b7280;
+            --border: #e5e7eb; --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-body);
-            color: var(--text-main);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+        /* Navbar */
+        .navbar { height: 60px; background: var(--bg-panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 15px; z-index: 10; flex-shrink: 0; }
+        .app-title { font-size: 1.1rem; font-weight: 700; }
+        .nav-right button { font-size: 0.8rem; }
+
+        /* Layout Utama */
+        .main-container { display: flex; flex: 1; overflow: hidden; position: relative; }
+        .left-panel { width: 400px; background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 5; flex-shrink: 0; }
+        .right-panel { flex: 1; overflow-y: auto; padding: 20px; background: var(--bg-body); display: flex; flex-direction: column; gap: 20px; }
+        .resizer { width: 5px; background: #e5e7eb; cursor: col-resize; z-index: 6; }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; overflow-y: auto; } /* Allow body scroll on mobile */
+            .left-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); height: auto; flex-shrink: 0; }
+            .right-panel { width: 100%; height: auto; overflow: visible; }
+            .resizer { display: none; }
+            .navbar { padding: 0 10px; }
+            .app-title { font-size: 1rem; }
+            /* Hide non-essential buttons on mobile navbar if needed */
         }
 
-        .navbar {
-            height: 60px;
-            background: var(--bg-panel);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 20px;
-            z-index: 10;
-        }
-
-        .app-title {
-            font-size: 1.25rem;
-            font-weight: 700;
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-
-        .btn {
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid transparent;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-        }
-
-        .btn-outline { background: white; border-color: var(--border); color: var(--text-main); }
-        .btn-outline:hover { background: #f9fafb; border-color: #d1d5db; }
+        /* Components */
+        .btn { padding: 8px 12px; border-radius: 6px; border: 1px solid transparent; font-size: 0.875rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover { background: var(--primary-hover); }
-        .btn-danger { background: white; color: var(--danger); border: 1px solid var(--danger); }
-        .btn-warning { background: var(--warning); color: white; }
-        .btn-secondary { background: #6b7280; color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-outline { background: white; border-color: var(--border); color: var(--text-main); }
+        .btn-danger { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
+        .full-width { width: 100%; }
+
+        /* Header Input Section */
+        .global-input-section { padding: 15px; background: #eff6ff; border-bottom: 1px solid #bfdbfe; }
+        .section-title { font-size: 0.75rem; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em; }
         
-        .btn-icon { padding: 4px 8px; font-size: 0.8rem; margin-right: 2px; }
-        .btn-edit { background: #eff6ff; color: var(--primary); border: 1px solid #bfdbfe; }
-        .btn-edit:hover { background: var(--primary); color: white; }
-        .btn-delete { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
-        .btn-delete:hover { background: var(--danger); color: white; }
-
-        .file-input-hidden { display: none; }
-        .main-container { display: flex; flex: 1; overflow: hidden; }
-
-        .left-panel {
-            width: 450px;
-            min-width: 350px;
-            background: var(--bg-panel);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            z-index: 5;
-        }
-
-        .panel-header { padding: 15px 20px; border-bottom: 1px solid var(--border); background: #f9fafb; }
-        .tabs { display: flex; background: #e5e7eb; padding: 4px; border-radius: 8px; }
-        .tab { flex: 1; padding: 8px; text-align: center; cursor: pointer; border-radius: 6px; font-weight: 600; color: var(--text-muted); }
-        .tab.active { background: white; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-
-        .input-content { flex: 1; overflow-y: auto; padding: 20px; }
+        .form-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; position: relative; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .col-span-2 { grid-column: span 2; }
         
-        .editing-banner {
-            background: #fffbeb; border-bottom: 1px solid #fcd34d; color: #92400e;
-            padding: 8px 20px; font-size: 0.85rem; display: none; align-items: center; justify-content: space-between;
-        }
-
-        .form-card {
-            background: white; border: 1px solid var(--border);
-            border-radius: 8px; padding: 15px; margin-bottom: 15px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .row-badge { background: #eff6ff; color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .full-width { grid-column: span 2; }
         .form-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
-        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
-        .form-control:focus { outline: none; border-color: var(--primary); }
-        .form-control[readonly] { background-color: #f3f4f6; cursor: not-allowed; }
+        .form-control { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
+        .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
 
-        .action-bar { padding: 15px 20px; border-top: 1px solid var(--border); background: white; display: flex; gap: 10px; }
+        /* Dashboard Elements */
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .mode-toggle { display: flex; background: #e5e7eb; padding: 3px; border-radius: 6px; }
+        .mode-btn { padding: 6px 12px; font-size: 0.85rem; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; color: var(--text-muted); }
+        .mode-btn.active { background: white; color: var(--primary); shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
-        .resizer { width: 6px; background: var(--bg-body); cursor: col-resize; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
-        .resizer:hover, .resizer.active { background: var(--primary); }
-
-        .right-panel { flex: 1; overflow-y: auto; padding: 25px; background: var(--bg-body); }
-        .summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
-        .stat-card { background: white; padding: 20px; border-radius: 10px; border: 1px solid var(--border); }
-        .stat-label { font-size: 0.85rem; color: var(--text-muted); }
-        .stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 5px; }
-
-        .table-section { background: white; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 25px; }
-        .table-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .table-header h3 { font-size: 1rem; font-weight: 600; }
-        .income-header { background: #f0fdf4; color: #166534; }
-        .expense-header { background: #fef2f2; color: #991b1b; }
-
-        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-        th { text-align: left; padding: 12px 16px; background: #f9fafb; border-bottom: 1px solid var(--border); color: var(--text-muted); font-weight: 600; }
-        td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-main); }
-        .col-money { text-align: right; font-family: 'Courier New', monospace; font-weight: 600; }
-        .text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-primary { color: var(--primary); }
+        .table-container { background: white; border-radius: 8px; border: 1px solid var(--border); overflow-x: auto; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 600px; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: #f9fafb; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+        .col-money { text-align: right; font-family: monospace; font-weight: 600; }
         
-        /* Loading Overlay */
-        #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:999; display:flex; justify-content:center; align-items:center; flex-direction:column; }
-        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        /* Loading & Status */
+        #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:999; display:none; justify-content:center; align-items:center; flex-direction:column; }
+        .spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Empty State */
+        .empty-state { padding: 30px; text-align: center; color: var(--text-muted); font-style: italic; }
+        
+        .highlight-banner { background: #fefce8; border: 1px solid #fde047; padding: 10px; border-radius: 6px; font-size: 0.85rem; color: #854d0e; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+
+        /* Filter Section for History */
+        .filter-box { background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 15px; }
     </style>
 </head>
 <body>
-    <!-- Loading Overlay -->
+    
     <div id="loading-overlay">
         <div class="spinner"></div>
-        <p style="margin-top:10px; font-weight:600; color:var(--text-main);">Memuat Data...</p>
+        <p style="margin-top:10px; font-weight:500;">Memproses...</p>
     </div>
 
     <!-- Navbar -->
     <nav class="navbar">
-        <div class="nav-left">
-            <input type="file" id="excelFile" accept=".xlsx, .xls" class="file-input-hidden">
-            <button class="btn btn-primary" onclick="document.getElementById('excelFile').click()">📂 Import Master (Excel)</button>
-            <button class="btn btn-outline" onclick="exportToExcel()">📤 Export Laporan</button>
+        <div class="app-title">MBG Suci</div>
+        <div class="nav-right">
+            <input type="file" id="excelFile" accept=".xlsx" style="display:none">
+            <button class="btn btn-outline" onclick="document.getElementById('excelFile').click()">📂 Import Master</button>
         </div>
-        <div class="app-title">MBG Suci System</div>
-        <div style="width: 200px;"></div>
     </nav>
 
     <div class="main-container">
-        <!-- LEFT PANEL -->
-        <div class="left-panel" id="leftPanel">
-            <div class="panel-header">
-                <div class="tabs">
-                    <div class="tab active" onclick="switchTab('income')" id="tab-income">Uang Masuk</div>
-                    <div class="tab" onclick="switchTab('expense')" id="tab-expense">Uang Keluar</div>
+        <!-- PANEL KIRI: INPUT -->
+        <div class="left-panel">
+            
+            <!-- 1. HEADER INFO PENGIRIMAN (GLOBAL INPUT) -->
+            <div class="global-input-section">
+                <div class="section-title">1. Informasi Pengiriman</div>
+                <div class="form-grid">
+                    <div class="form-group col-span-2">
+                        <label>Tujuan Pengiriman</label>
+                        <select id="global-tujuan" class="form-control" style="font-weight: bold; color: var(--primary);">
+                            <option value="">-- Pilih Tujuan --</option>
+                            <option value="Sekolah">Sekolah</option>
+                            <option value="Posyandu">Posyandu</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-span-2">
+                        <label>Tanggal Kirim</label>
+                        <input type="date" id="global-tanggal" class="form-control">
+                    </div>
                 </div>
             </div>
 
-            <!-- Banner Editing Mode -->
-            <div id="editing-banner" class="editing-banner">
-                <span>📝 Sedang mengedit transaksi...</span>
-                <button class="btn btn-danger" style="font-size:0.7rem; padding:2px 8px;" onclick="cancelEdit()">Batal</button>
+            <!-- 2. TAB MENU -->
+            <div style="padding: 10px 15px; background: #f9fafb; border-bottom: 1px solid var(--border);">
+                <div class="section-title">2. Input Bahan Baku</div>
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn btn-primary full-width" id="btn-tab-income" onclick="switchTab('income')">Uang Masuk</button>
+                    <button class="btn btn-outline full-width" id="btn-tab-expense" onclick="switchTab('expense')">Uang Keluar</button>
+                </div>
             </div>
 
-            <div id="import-alert" style="background:#fff7ed; color:#9a3412; padding:10px; font-size:0.8rem; text-align:center; border-bottom:1px solid #fed7aa; display:block;">
-                ⚠️ Belum import Data Excel. (Dropdown akan kosong)
+            <!-- 3. FORM INPUT ITEM -->
+            <div class="input-content" style="flex: 1; overflow-y: auto; padding: 15px;">
+                <div id="input-form-container">
+                    <!-- Dynamic Row will be inserted here -->
+                </div>
             </div>
 
-            <div id="income-view" class="input-content">
-                <div id="incomeRows"></div>
-            </div>
-
-            <div id="expense-view" class="input-content" style="display: none;">
-                <div id="expenseRows"></div>
-            </div>
-
-            <div class="action-bar">
-                <button class="btn btn-outline" id="btnAddRow" onclick="addNewRow()">+ Tambah Item</button>
-                <button class="btn btn-primary" id="btnSave" onclick="saveData()" style="flex: 1;">Simpan Database</button>
-                <button class="btn btn-secondary" id="btnCancel" onclick="cancelEdit()" style="display:none;">Batal Edit</button>
+            <!-- 4. ACTION BUTTONS -->
+            <div style="padding: 15px; border-top: 1px solid var(--border); background: white;">
+                <button class="btn btn-outline full-width" onclick="addToSession()">⬇️ Tambah ke List (Draft)</button>
             </div>
         </div>
 
-        <div class="resizer" id="resizer"></div>
-
-        <!-- RIGHT PANEL -->
+        <!-- PANEL KANAN: DASHBOARD & PREVIEW -->
         <div class="right-panel">
-            <div class="summary-cards">
-                <div class="stat-card">
-                    <div class="stat-label">Total Uang Masuk</div>
-                    <div class="stat-value text-success" id="summaryIncome">Rp 0</div>
+            
+            <div class="dashboard-header">
+                <div class="mode-toggle">
+                    <button class="mode-btn active" id="mode-draft" onclick="switchViewMode('draft')">Draft Saat Ini</button>
+                    <button class="mode-btn" id="mode-history" onclick="switchViewMode('history')">Riwayat Database</button>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">Total Uang Keluar</div>
-                    <div class="stat-value text-danger" id="summaryExpense">Rp 0</div>
-                </div>
-                <div class="stat-card" style="background: #eff6ff; border-color: #bfdbfe;">
-                    <div class="stat-label">Saldo Akhir</div>
-                    <div class="stat-value text-primary" id="summaryBalance">Rp 0</div>
+                <div id="draft-actions">
+                    <button class="btn btn-success" onclick="saveToSupabase()">✅ Upload Semua ke Database</button>
                 </div>
             </div>
 
-            <div class="dashboard-grid">
-                <!-- Tabel Masuk -->
-                <div class="table-section">
-                    <div class="table-header income-header">
-                        <h3>Rekap Uang Masuk</h3>
-                    </div>
-                    <div style="overflow-x:auto;">
-                        <table id="tableIncome">
-                            <thead>
-                                <tr>
-                                    <th width="80">Aksi</th>
-                                    <th>Tanggal</th>
-                                    <th>Bahan Baku</th>
-                                    <th>Qty</th>
-                                    <th>Satuan</th>
-                                    <th>Harga</th>
-                                    <th class="col-money">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
+            <!-- VIEW: DRAFT / CURRENT SESSION -->
+            <div id="view-draft">
+                <div class="highlight-banner" id="draft-banner">
+                    <span>📝 Data ini baru disimpan di cache (belum masuk database). Klik tombol hijau untuk menyimpan.</span>
                 </div>
-
-                <!-- Tabel Keluar -->
-                <div class="table-section">
-                    <div class="table-header expense-header">
-                        <h3>Rekap Uang Keluar & Saldo</h3>
+                
+                <div class="table-container">
+                    <div style="padding: 10px 15px; background: #f0fdf4; border-bottom: 1px solid var(--border); color: #166534; font-weight: 600;">
+                        Draft Uang Masuk
                     </div>
-                    <div style="overflow-x:auto;">
-                        <table id="tableExpense">
-                            <thead>
-                                <tr>
-                                    <th width="80">Aksi</th>
-                                    <th>Tanggal</th>
-                                    <th>Bahan Baku</th>
-                                    <th>Qty</th>
-                                    <th>Satuan</th>
-                                    <th>Harga</th>
-                                    <th class="col-money">Keluar</th>
-                                    <th class="col-money">Saldo</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Harga</th>
+                                <th class="col-money">Total</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="draft-income-body"></tbody>
+                    </table>
+                </div>
+                <br>
+                <div class="table-container">
+                    <div style="padding: 10px 15px; background: #fef2f2; border-bottom: 1px solid var(--border); color: #991b1b; font-weight: 600;">
+                        Draft Uang Keluar
                     </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Harga</th>
+                                <th class="col-money">Total</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="draft-expense-body"></tbody>
+                    </table>
                 </div>
             </div>
+
+            <!-- VIEW: HISTORY / DATABASE -->
+            <div id="view-history" style="display: none;">
+                <div class="filter-box">
+                    <div class="form-group">
+                        <label>Filter Tujuan</label>
+                        <select id="filter-tujuan" class="form-control">
+                            <option value="all">Semua</option>
+                            <option value="Sekolah">Sekolah</option>
+                            <option value="Posyandu">Posyandu</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Filter Tanggal</label>
+                        <input type="date" id="filter-tanggal" class="form-control">
+                    </div>
+                    <button class="btn btn-primary" onclick="fetchHistory()">Cari Data</button>
+                    <button class="btn btn-outline" onclick="exportToExcel()">Export Excel</button>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tgl</th>
+                                <th>Tujuan</th>
+                                <th>Tipe</th>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th class="col-money">Total</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </div>
 
     <script>
         // ==========================================
-        // KONFIGURASI SUPABASE (WAJIB DIISI)
+        // KONFIGURASI SUPABASE
         // ==========================================
-        
-        // !!! GANTI BAGIAN INI DENGAN DATA DARI SUPABASE ANDA !!!
         const SUPABASE_URL = "https://ebrfayeiattzgcbjolvb.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVicmZheWVpYXR0emdjYmpvbHZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyODM2ODMsImV4cCI6MjA4NDg1OTY4M30.pdCeX5j1MG48yGWxc48-maOi8QzkX8ZqkPKrJz3Cuus";
         
-        // Global variables for Supabase
         let _supabase = null;
-
-        // Inisialisasi Client dengan Error Handling
         try {
-            if (typeof supabase !== 'undefined') {
-                const { createClient } = supabase;
-                if (SUPABASE_URL.includes("MASUKKAN") || SUPABASE_KEY.includes("MASUKKAN")) {
-                    console.warn("⚠️ URL/Key Supabase belum diisi. Aplikasi berjalan mode offline (error mungkin muncul saat simpan).");
-                } else {
-                    _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-                }
-            } else {
-                console.error("Library Supabase gagal dimuat.");
+            if (typeof supabase !== 'undefined' && !SUPABASE_URL.includes("MASUKKAN")) {
+                _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
-        } catch (e) {
-            console.error("Error inisialisasi Supabase:", e);
-        }
+        } catch (e) { console.error("Supabase Error", e); }
         // ==========================================
 
-        // --- GLOBAL VARIABLES ---
+        // STATE
         let currentTab = 'income';
-        let incomeTransactions = [];
-        let expenseTransactions = [];
+        let masterIncome = [];
+        let masterExpense = [];
         
-        let masterIncomeData = []; 
-        let masterExpenseData = []; 
+        // CACHE DATA (Session)
+        let sessionData = []; // [{tujuan, date, name, qty, price, total, type, unit}, ...]
 
-        let incomeRowCount = 0;
-        let expenseRowCount = 0;
-        let isEditing = false;
-        let editingId = null; 
+        // HISTORY DATA (Database)
+        let historyData = [];
 
-        // --- INIT ---
-        window.onload = async function() {
-            if (_supabase) {
-                await fetchTransactions(); // Load data dari Database saat start
-            } else {
-                document.getElementById('loading-overlay').style.display = 'none';
-                // Jika offline/key belum ada, tampilkan row kosong saja
-            }
-            addNewRow(); 
-            // Pastikan overlay hilang apapun yg terjadi
-            document.getElementById('loading-overlay').style.display = 'none';
+        window.onload = function() {
+            renderInputForm();
+            // Set default date hari ini
+            document.getElementById('global-tanggal').valueAsDate = new Date();
+            document.getElementById('filter-tanggal').valueAsDate = new Date();
+            
+            // Cek import status
+            const hasData = localStorage.getItem('hasMasterData');
+            if(hasData) document.getElementById('import-alert')?.remove();
         };
 
-        // --- DATABASE FUNCTIONS (CRUD) ---
-
-        // 1. READ (Ambil Data)
-        async function fetchTransactions() {
-            if (!_supabase) return;
-
-            const { data, error } = await _supabase
-                .from('transaksi')
-                .select('*')
-                .order('date', { ascending: true });
-
-            if (error) {
-                console.error("Error fetching:", error);
-                alert("Gagal mengambil data dari database. Cek Console untuk detail.");
-                return;
-            }
-
-            if (data) {
-                // Pisahkan data ke array lokal
-                incomeTransactions = data.filter(t => t.type === 'income');
-                expenseTransactions = data.filter(t => t.type === 'expense');
-                updateDashboard();
-            }
+        // --- 1. LOGIC INPUT & UI ---
+        
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('btn-tab-income').className = tab === 'income' ? 'btn btn-primary full-width' : 'btn btn-outline full-width';
+            document.getElementById('btn-tab-expense').className = tab === 'expense' ? 'btn btn-primary full-width' : 'btn btn-outline full-width';
+            renderInputForm();
         }
 
-        // 2. CREATE (Simpan Data Baru)
-        async function saveData() {
-            if (!_supabase) {
-                alert("Error: Supabase belum terkonfigurasi. Cek baris ~212 di kode.");
-                return;
-            }
-
+        function renderInputForm() {
+            const container = document.getElementById('input-form-container');
             const isIncome = currentTab === 'income';
-            const containerId = isIncome ? 'incomeRows' : 'expenseRows';
-            const rows = document.querySelectorAll(`#${containerId} .form-card`);
+            const masterList = isIncome ? masterIncome : masterExpense;
             
-            let tempTx = [];
-            let isValid = false;
+            let options = '<option value="">-- Pilih Item --</option>';
+            if(masterList.length > 0) {
+                masterList.forEach((m, i) => options += `<option value="${i}">${m.name}</option>`);
+            }
+            options += '<option value="custom">+ Manual</option>';
 
-            rows.forEach(row => {
-                const date = row.querySelector('.inp-date').value;
-                const select = row.querySelector('.inp-item');
-                let name = "";
-                
-                if (select.value === 'custom') {
-                    name = row.querySelector('.inp-custom-name').value;
-                } else if (select.value !== "") {
-                    const selectedOpt = select.options[select.selectedIndex];
-                    if(selectedOpt) name = selectedOpt.text;
-                }
+            container.innerHTML = `
+                <div class="form-card" id="active-form">
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label>Nama Item / Bahan Baku</label>
+                        <select class="form-control" id="inp-item" onchange="onItemSelect(this, ${isIncome})">${options}</select>
+                        <input type="text" class="form-control" id="inp-custom" style="display:none; margin-top:5px;" placeholder="Ketik nama item...">
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Satuan</label>
+                            <input type="text" class="form-control" id="inp-unit" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Harga</label>
+                            <input type="number" class="form-control" id="inp-price" readonly>
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label>Jumlah (Qty)</label>
+                            <input type="number" class="form-control" id="inp-qty" placeholder="0" oninput="calcTotal()">
+                        </div>
+                        <div class="form-group col-span-2" style="text-align:right;">
+                            <span id="txt-total" style="font-size:1.2rem; font-weight:bold; color:var(--primary);">Rp 0</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
 
-                const unit = row.querySelector('.inp-unit').value;
-                const price = parseFloat(row.querySelector('.inp-price').value) || 0;
-                const qty = parseFloat(row.querySelector('.inp-qty').value) || 0;
-                const total = price * qty;
+        function onItemSelect(sel, isIncome) {
+            const val = sel.value;
+            const customInp = document.getElementById('inp-custom');
+            const priceInp = document.getElementById('inp-price');
+            const unitInp = document.getElementById('inp-unit');
 
-                if (name && qty > 0) {
-                    isValid = true;
-                    tempTx.push({
-                        date: date,
-                        name: name,
-                        unit: unit,
-                        price: price,
-                        qty: qty,
-                        total: total,
-                        type: isIncome ? 'income' : 'expense'
-                    });
-                }
+            if(val === 'custom') {
+                customInp.style.display = 'block';
+                priceInp.readOnly = false; priceInp.value = '';
+                unitInp.readOnly = false; unitInp.value = '';
+                customInp.focus();
+            } else if (val !== '') {
+                customInp.style.display = 'none';
+                const list = isIncome ? masterIncome : masterExpense;
+                const data = list[val];
+                priceInp.value = data.price; priceInp.readOnly = true;
+                unitInp.value = isIncome ? 'Porsi' : data.unit; unitInp.readOnly = true;
+                document.getElementById('inp-qty').focus();
+            }
+            calcTotal();
+        }
+
+        function calcTotal() {
+            const p = parseFloat(document.getElementById('inp-price').value) || 0;
+            const q = parseFloat(document.getElementById('inp-qty').value) || 0;
+            document.getElementById('txt-total').textContent = formatRupiah(p * q);
+        }
+
+        // --- 2. LOGIC CACHE / SESSION ---
+
+        function addToSession() {
+            // 1. Validasi Global Input
+            const tujuan = document.getElementById('global-tujuan').value;
+            const tanggal = document.getElementById('global-tanggal').value;
+
+            if(!tujuan || !tanggal) {
+                alert("⚠️ Mohon isi TUJUAN dan TANGGAL KIRIM di bagian atas dulu.");
+                window.scrollTo(0,0);
+                return;
+            }
+
+            // 2. Ambil Data Form
+            const itemSel = document.getElementById('inp-item');
+            let name = "";
+            if(itemSel.value === 'custom') name = document.getElementById('inp-custom').value;
+            else if(itemSel.value !== '') name = itemSel.options[itemSel.selectedIndex].text;
+
+            const qty = parseFloat(document.getElementById('inp-qty').value) || 0;
+            const price = parseFloat(document.getElementById('inp-price').value) || 0;
+            const unit = document.getElementById('inp-unit').value;
+            
+            if(!name || qty <= 0) {
+                alert("Mohon lengkapi item dan jumlah qty.");
+                return;
+            }
+
+            // 3. Push ke Session Array
+            const newItem = {
+                id_temp: Date.now(), // ID sementara
+                tujuan: tujuan,
+                date: tanggal, // Ini adalah Tanggal Kirim
+                name: name,
+                qty: qty,
+                unit: unit,
+                price: price,
+                total: price * qty,
+                type: currentTab // 'income' or 'expense'
+            };
+
+            sessionData.push(newItem);
+            
+            // 4. Reset Input (Kecuali Global)
+            renderInputForm();
+            renderDraftTables();
+            
+            // Toast / Feedback sederhana
+            const btn = document.querySelector('.left-panel .btn-outline');
+            const originalText = btn.innerText;
+            btn.innerText = "✅ Masuk List!";
+            setTimeout(() => btn.innerText = originalText, 1000);
+        }
+
+        function removeFromSession(id_temp) {
+            sessionData = sessionData.filter(x => x.id_temp !== id_temp);
+            renderDraftTables();
+        }
+
+        function renderDraftTables() {
+            const incBody = document.getElementById('draft-income-body');
+            const expBody = document.getElementById('draft-expense-body');
+            incBody.innerHTML = ''; expBody.innerHTML = '';
+
+            const incomeItems = sessionData.filter(x => x.type === 'income');
+            const expenseItems = sessionData.filter(x => x.type === 'expense');
+
+            function renderRow(item) {
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight:600;">${item.name}</div>
+                            <div style="font-size:0.75rem; color:#666;">${item.tujuan} (${formatDate(item.date)})</div>
+                        </td>
+                        <td>${item.qty} ${item.unit}</td>
+                        <td>${formatRupiah(item.price)}</td>
+                        <td class="col-money">${formatRupiah(item.total)}</td>
+                        <td><button class="btn btn-danger" style="padding:4px 8px; font-size:0.7rem;" onclick="removeFromSession(${item.id_temp})">Hapus</button></td>
+                    </tr>
+                `;
+            }
+
+            if(incomeItems.length === 0) incBody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada inputan</td></tr>';
+            else incomeItems.forEach(i => incBody.innerHTML += renderRow(i));
+
+            if(expenseItems.length === 0) expBody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada inputan</td></tr>';
+            else expenseItems.forEach(i => expBody.innerHTML += renderRow(i));
+        }
+
+        // --- 3. DATABASE ACTION ---
+
+        async function saveToSupabase() {
+            if(!_supabase) return alert("Konfigurasi Supabase belum diset!");
+            if(sessionData.length === 0) return alert("List draft kosong. Input data dulu.");
+
+            if(!confirm(`Yakin simpan ${sessionData.length} item ke database?`)) return;
+
+            showLoading(true);
+
+            // Bersihkan object dari properti temp sebelum kirim DB
+            const dataToInsert = sessionData.map(({id_temp, ...rest}) => rest);
+
+            const { error } = await _supabase.from('transaksi').insert(dataToInsert);
+
+            showLoading(false);
+
+            if(error) {
+                alert("Gagal simpan: " + error.message);
+            } else {
+                alert("Sukses! Data tersimpan di Database.");
+                sessionData = []; // Clear cache
+                renderDraftTables();
+            }
+        }
+
+        // --- 4. HISTORY & VIEW MODE ---
+
+        function switchViewMode(mode) {
+            document.getElementById('mode-draft').className = mode === 'draft' ? 'mode-btn active' : 'mode-btn';
+            document.getElementById('mode-history').className = mode === 'history' ? 'mode-btn active' : 'mode-btn';
+            
+            document.getElementById('view-draft').style.display = mode === 'draft' ? 'block' : 'none';
+            document.getElementById('view-history').style.display = mode === 'history' ? 'block' : 'none';
+            document.getElementById('draft-actions').style.display = mode === 'draft' ? 'block' : 'none';
+        }
+
+        async function fetchHistory() {
+            if(!_supabase) return alert("Supabase belum dikonfigurasi");
+            
+            const tujuan = document.getElementById('filter-tujuan').value;
+            const tanggal = document.getElementById('filter-tanggal').value;
+
+            showLoading(true);
+
+            let query = _supabase.from('transaksi').select('*').order('created_at', {ascending: false});
+
+            if(tujuan !== 'all') query = query.eq('tujuan', tujuan);
+            if(tanggal) query = query.eq('date', tanggal);
+
+            const { data, error } = await query;
+            
+            showLoading(false);
+
+            if(error) {
+                alert("Error fetch: " + error.message);
+            } else {
+                historyData = data;
+                renderHistoryTable();
+            }
+        }
+
+        function renderHistoryTable() {
+            const tbody = document.getElementById('history-body');
+            tbody.innerHTML = '';
+            
+            if(historyData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Data tidak ditemukan</td></tr>';
+                return;
+            }
+
+            historyData.forEach(item => {
+                const badgeColor = item.type === 'income' ? 'background:#dcfce7; color:#166534;' : 'background:#fee2e2; color:#991b1b;';
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${formatDate(item.date)}</td>
+                        <td>${item.tujuan || '-'}</td>
+                        <td><span style="font-size:0.7rem; padding:2px 6px; border-radius:4px; ${badgeColor}">${item.type === 'income' ? 'Masuk' : 'Keluar'}</span></td>
+                        <td>${item.name}</td>
+                        <td>${item.qty} ${item.unit}</td>
+                        <td class="col-money">${formatRupiah(item.total)}</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem;" onclick="deleteHistory(${item.id})">Hapus</button>
+                        </td>
+                    </tr>
+                `;
             });
-
-            if (!isValid) return alert("Mohon lengkapi data (Nama & Qty).");
-
-            showLoading(true);
-
-            if (isEditing) {
-                // --- UPDATE (Edit Data Lama) ---
-                const { error } = await _supabase
-                    .from('transaksi')
-                    .update(tempTx[0]) 
-                    .eq('id', editingId);
-
-                if (error) {
-                    alert("Gagal update: " + error.message);
-                } else {
-                    alert("Data berhasil diupdate!");
-                    cancelEdit();
-                    await fetchTransactions(); 
-                }
-            } else {
-                // --- INSERT (Simpan Data Baru) ---
-                const { error } = await _supabase
-                    .from('transaksi')
-                    .insert(tempTx);
-
-                if (error) {
-                    alert("Gagal simpan: " + error.message);
-                } else {
-                    alert("Data tersimpan di Database!");
-                    // Reset Form
-                    document.getElementById(containerId).innerHTML = '';
-                    if(isIncome) incomeRowCount = 0; else expenseRowCount = 0;
-                    addNewRow();
-                    await fetchTransactions(); 
-                }
-            }
-            showLoading(false);
         }
 
-        // 3. DELETE (Hapus Data)
-        async function deleteTransaction(id, type) {
-            if (!_supabase) return;
-            if(!confirm("Yakin hapus data ini dari Database?")) return;
+        async function deleteHistory(id) {
+            if(!confirm("Hapus data permanen dari database?")) return;
             
             showLoading(true);
-            const { error } = await _supabase
-                .from('transaksi')
-                .delete()
-                .eq('id', id);
-
-            if (error) {
-                alert("Gagal hapus: " + error.message);
+            const { error } = await _supabase.from('transaksi').delete().eq('id', id);
+            
+            if(!error) {
+                // Remove from local array too
+                historyData = historyData.filter(x => x.id !== id);
+                renderHistoryTable();
             } else {
-                if(isEditing && editingId === id) cancelEdit();
-                await fetchTransactions();
+                alert("Gagal hapus: " + error.message);
             }
             showLoading(false);
-        }
-
-        // --- UI HELPER ---
-        function showLoading(show) {
-            document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
         }
 
         // --- EXCEL IMPORT ---
         document.getElementById('excelFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
-            if(!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                if (workbook.Sheets["Uang Masuk"]) {
-                    const rawData = XLSX.utils.sheet_to_json(workbook.Sheets["Uang Masuk"], {header: 1});
-                    masterIncomeData = rawData.slice(1).map(row => ({ name: row[0], price: parseFloat(row[1]) || 0 })).filter(i => i.name);
+                const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                if(wb.Sheets["Uang Masuk"]) {
+                    const raw = XLSX.utils.sheet_to_json(wb.Sheets["Uang Masuk"], {header:1});
+                    masterIncome = raw.slice(1).map(r => ({name: r[0], price: r[1]||0})).filter(x=>x.name);
                 }
-                if (workbook.Sheets["Uang Keluar"]) {
-                    const rawData = XLSX.utils.sheet_to_json(workbook.Sheets["Uang Keluar"], {header: 1});
-                    masterExpenseData = rawData.slice(1).map(row => ({ name: row[0], unit: row[1] || '-', price: parseFloat(row[2]) || 0 })).filter(i => i.name);
+                if(wb.Sheets["Uang Keluar"]) {
+                    const raw = XLSX.utils.sheet_to_json(wb.Sheets["Uang Keluar"], {header:1});
+                    masterExpense = raw.slice(1).map(r => ({name: r[0], unit: r[1]||'-', price: r[2]||0})).filter(x=>x.name);
                 }
-                if(masterIncomeData.length > 0 || masterExpenseData.length > 0) {
-                    document.getElementById('import-alert').style.display = 'none';
-                    alert(`Sukses Import Master Data!\n${masterIncomeData.length} Item Masuk\n${masterExpenseData.length} Item Keluar`);
-                    if(!isEditing) {
-                        const containerId = currentTab === 'income' ? 'incomeRows' : 'expenseRows';
-                        document.getElementById(containerId).innerHTML = '';
-                        if(currentTab === 'income') incomeRowCount = 0; else expenseRowCount = 0;
-                        addNewRow();
-                    }
-                } else {
-                    alert("Sheet 'Uang Masuk' / 'Uang Keluar' tidak ditemukan.");
-                }
+                localStorage.setItem('hasMasterData', 'true');
+                alert(`Import Berhasil! ${masterIncome.length} Item Masuk, ${masterExpense.length} Item Keluar.`);
+                renderInputForm();
             };
             reader.readAsArrayBuffer(file);
         });
-
-        function switchTab(tab) {
-            if(isEditing) cancelEdit();
-            currentTab = tab;
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById(`tab-${tab}`).classList.add('active');
-            document.getElementById('income-view').style.display = tab === 'income' ? 'block' : 'none';
-            document.getElementById('expense-view').style.display = tab === 'expense' ? 'block' : 'none';
-            const containerId = tab === 'income' ? 'incomeRows' : 'expenseRows';
-            if (document.getElementById(containerId).children.length === 0) addNewRow();
-        }
-
-        function addNewRow() {
-            const isIncome = currentTab === 'income';
-            const containerId = isIncome ? 'incomeRows' : 'expenseRows';
-            const container = document.getElementById(containerId);
-            if(isEditing && container.children.length > 0) return;
-            const count = isIncome ? ++incomeRowCount : ++expenseRowCount;
-            const rowId = `${currentTab}-row-${count}`;
-            const masterList = isIncome ? masterIncomeData : masterExpenseData;
-            
-            let optionsHTML = '<option value="">-- Pilih Item --</option>';
-            if (masterList.length > 0) {
-                masterList.forEach((item, idx) => { optionsHTML += `<option value="${idx}">${item.name}</option>`; });
-            } else {
-                optionsHTML += `<option value="" disabled style="font-style:italic;">(Import Excel dulu)</option>`;
-            }
-            optionsHTML += `<option value="custom" style="color:blue; font-weight:bold;">+ Input Manual</option>`;
-
-            const div = document.createElement('div');
-            div.className = 'form-card';
-            div.id = rowId;
-            div.innerHTML = `
-                <div class="card-header">
-                    <span class="row-badge">Item #${count}</span>
-                    <button class="btn btn-danger remove-btn" style="font-size:0.7rem; padding: 2px 8px;" onclick="removeRow('${rowId}')">X</button>
-                </div>
-                <div class="form-grid">
-                    <div class="form-group"><label>Tanggal</label><input type="date" class="form-control inp-date" required></div>
-                    <div class="form-group"><label>Bahan Baku</label>
-                        <select class="form-control inp-item" onchange="autoFillItem(this, ${isIncome})">${optionsHTML}</select>
-                        <input type="text" class="form-control inp-custom-name" style="display:none; margin-top:5px;" placeholder="Nama Item...">
-                    </div>
-                    <div class="form-group"><label>Satuan</label><input type="text" class="form-control inp-unit" readonly placeholder="-"></div>
-                    <div class="form-group"><label>Harga</label><input type="number" class="form-control inp-price" readonly placeholder="0"></div>
-                    <div class="form-group full-width"><label>Qty</label><input type="number" class="form-control inp-qty" oninput="calcSubtotal(this)" placeholder="0"></div>
-                    <div class="form-group full-width" style="text-align: right;"><span class="row-total" style="font-weight:bold; font-size:1.1rem; color:var(--primary);">Rp 0</span></div>
-                </div>
-            `;
-            container.appendChild(div);
-            div.querySelector('.inp-date').valueAsDate = new Date();
-        }
-
-        function removeRow(id) {
-            if(isEditing) { if(confirm("Batalkan mode edit?")) cancelEdit(); return; }
-            const el = document.getElementById(id); if(el) el.remove();
-        }
-
-        function autoFillItem(selectElem, isIncome) {
-            const card = selectElem.closest('.form-card');
-            const customInput = card.querySelector('.inp-custom-name');
-            const priceInput = card.querySelector('.inp-price');
-            const unitInput = card.querySelector('.inp-unit');
-            const qtyInput = card.querySelector('.inp-qty');
-            const val = selectElem.value;
-
-            if (val === 'custom') {
-                customInput.style.display = 'block'; customInput.focus();
-                priceInput.readOnly = false; priceInput.value = '';
-                unitInput.readOnly = false; unitInput.value = '';
-            } else if (val !== '') {
-                customInput.style.display = 'none';
-                const list = isIncome ? masterIncomeData : masterExpenseData;
-                const data = list[val];
-                if (data) {
-                    priceInput.value = data.price; priceInput.readOnly = true;
-                    unitInput.value = isIncome ? "Porsi" : data.unit; unitInput.readOnly = true;
-                }
-                qtyInput.focus();
-            } else { customInput.style.display = 'none'; }
-            calcSubtotal(selectElem);
-        }
-
-        function calcSubtotal(elem) {
-            const card = elem.closest('.form-card');
-            const price = parseFloat(card.querySelector('.inp-price').value) || 0;
-            const qty = parseFloat(card.querySelector('.inp-qty').value) || 0;
-            card.querySelector('.row-total').textContent = formatRupiah(price * qty);
-        }
-
-        // --- EDIT HANDLING ---
-        function editTransaction(id, type) {
-            switchTab(type);
-            const list = type === 'income' ? incomeTransactions : expenseTransactions;
-            const data = list.find(t => t.id === id);
-            if(!data) return;
-
-            isEditing = true;
-            editingId = id;
-            
-            document.getElementById('editing-banner').style.display = 'flex';
-            document.getElementById('btnSave').textContent = "Update Database";
-            document.getElementById('btnSave').classList.replace('btn-primary', 'btn-warning');
-            document.getElementById('btnCancel').style.display = 'inline-flex';
-            document.getElementById('btnAddRow').style.display = 'none';
-
-            const containerId = type === 'income' ? 'incomeRows' : 'expenseRows';
-            const container = document.getElementById(containerId);
-            container.innerHTML = ''; 
-            addNewRow(); 
-            
-            setTimeout(() => {
-                const row = container.lastElementChild;
-                if(!row) return;
-                row.querySelector('.inp-date').value = data.date;
-                row.querySelector('.inp-qty').value = data.qty;
-                
-                const select = row.querySelector('.inp-item');
-                const masterList = type === 'income' ? masterIncomeData : masterExpenseData;
-                let foundIndex = -1;
-                masterList.forEach((m, i) => { if(m.name === data.name) foundIndex = i; });
-
-                if(foundIndex !== -1) {
-                    select.value = foundIndex;
-                    const priceInput = row.querySelector('.inp-price');
-                    const unitInput = row.querySelector('.inp-unit');
-                    priceInput.value = data.price; priceInput.readOnly = true;
-                    unitInput.value = data.unit; unitInput.readOnly = true;
-                    row.querySelector('.inp-custom-name').style.display = 'none';
-                } else {
-                    select.value = 'custom';
-                    row.querySelector('.inp-custom-name').style.display = 'block';
-                    row.querySelector('.inp-custom-name').value = data.name;
-                    row.querySelector('.inp-price').value = data.price; row.querySelector('.inp-price').readOnly = false;
-                    row.querySelector('.inp-unit').value = data.unit; row.querySelector('.inp-unit').readOnly = false;
-                }
-                calcSubtotal(select);
-                const removeBtn = row.querySelector('.remove-btn');
-                if(removeBtn) removeBtn.style.display = 'none';
-            }, 50);
-        }
-
-        function cancelEdit() {
-            isEditing = false;
-            editingId = null;
-            document.getElementById('editing-banner').style.display = 'none';
-            document.getElementById('btnSave').textContent = "Simpan Database";
-            document.getElementById('btnSave').classList.replace('btn-warning', 'btn-primary');
-            document.getElementById('btnCancel').style.display = 'none';
-            document.getElementById('btnAddRow').style.display = 'inline-flex';
-            const containerId = currentTab === 'income' ? 'incomeRows' : 'expenseRows';
-            document.getElementById(containerId).innerHTML = '';
-            if(currentTab === 'income') incomeRowCount = 0; else expenseRowCount = 0;
-            addNewRow();
-        }
-
-        function updateDashboard() {
-            const tbIncome = document.querySelector('#tableIncome tbody');
-            tbIncome.innerHTML = '';
-            let totalIncome = 0;
-
-            incomeTransactions.forEach(t => {
-                totalIncome += t.total;
-                tbIncome.innerHTML += `
-                    <tr>
-                        <td style="white-space:nowrap;">
-                            <button class="btn btn-edit btn-icon" onclick="editTransaction(${t.id}, 'income')">✏️</button>
-                            <button class="btn btn-delete btn-icon" onclick="deleteTransaction(${t.id}, 'income')">🗑️</button>
-                        </td>
-                        <td>${formatDate(t.date)}</td>
-                        <td>${t.name}</td>
-                        <td>${t.qty}</td>
-                        <td>${t.unit}</td>
-                        <td>${formatRupiah(t.price)}</td>
-                        <td class="col-money">${formatRupiah(t.total)}</td>
-                    </tr>
-                `;
-            });
-
-            if(totalIncome > 0) tbIncome.innerHTML += `<tr style="background:#dcfce7; font-weight:bold;"><td colspan="6" style="text-align:right">Total Masuk</td><td class="col-money">${formatRupiah(totalIncome)}</td></tr>`;
-
-            const tbExpense = document.querySelector('#tableExpense tbody');
-            tbExpense.innerHTML = '';
-            let totalExpense = 0;
-            let currentBalance = totalIncome;
-
-            tbExpense.innerHTML += `<tr style="background:#ffedd5; font-weight:bold;"><td colspan="7" style="text-align:right">Saldo Awal (Total Masuk)</td><td class="col-money">${formatRupiah(currentBalance)}</td></tr>`;
-
-            expenseTransactions.forEach(t => {
-                totalExpense += t.total;
-                currentBalance -= t.total;
-                tbExpense.innerHTML += `
-                    <tr>
-                        <td style="white-space:nowrap;">
-                            <button class="btn btn-edit btn-icon" onclick="editTransaction(${t.id}, 'expense')">✏️</button>
-                            <button class="btn btn-delete btn-icon" onclick="deleteTransaction(${t.id}, 'expense')">🗑️</button>
-                        </td>
-                        <td>${formatDate(t.date)}</td>
-                        <td>${t.name}</td>
-                        <td>${t.qty}</td>
-                        <td>${t.unit}</td>
-                        <td>${formatRupiah(t.price)}</td>
-                        <td class="col-money text-danger">${formatRupiah(t.total)}</td>
-                        <td class="col-money" style="font-weight:bold;">${formatRupiah(currentBalance)}</td>
-                    </tr>
-                `;
-            });
-
-            document.getElementById('summaryIncome').textContent = formatRupiah(totalIncome);
-            document.getElementById('summaryExpense').textContent = formatRupiah(totalExpense);
-            document.getElementById('summaryBalance').textContent = formatRupiah(currentBalance);
-        }
-
-        function formatRupiah(n) { return new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits:0}).format(n); }
-        function formatDate(d) { return new Date(d).toLocaleDateString('id-ID', {day:'numeric', month:'short'}); }
-
+        
         function exportToExcel() {
+            if(historyData.length === 0) return alert("Tidak ada data riwayat untuk diexport. Lakukan pencarian dulu.");
             const wb = XLSX.utils.book_new();
-            incomeTransactions.sort((a,b) => new Date(a.date) - new Date(b.date));
-            let totalIncome = 0;
-            const incomeSheetData = [['Tanggal', 'Bahan Baku', 'Qty', 'Satuan', 'Harga', 'Total']];
-            incomeTransactions.forEach(t => { totalIncome += t.total; incomeSheetData.push([t.date, t.name, t.qty, t.unit, t.price, t.total]); });
-            incomeSheetData.push(['', '', '', '', 'Total Masuk', totalIncome]);
-            const wsIncome = XLSX.utils.aoa_to_sheet(incomeSheetData);
-            XLSX.utils.book_append_sheet(wb, wsIncome, "Rekap Uang Masuk");
-
-            expenseTransactions.sort((a,b) => new Date(a.date) - new Date(b.date));
-            let currentBalance = totalIncome;
-            const expenseSheetData = [['Tanggal', 'Bahan Baku', 'Qty', 'Satuan', 'Harga', 'Uang Keluar', 'Sisa Saldo']];
-            expenseSheetData.push(['', 'Saldo Awal (Total Masuk)', '', '', '', '', currentBalance]);
-            expenseTransactions.forEach(t => { currentBalance -= t.total; expenseSheetData.push([t.date, t.name, t.qty, t.unit, t.price, t.total, currentBalance]); });
-            const wsExpense = XLSX.utils.aoa_to_sheet(expenseSheetData);
-            XLSX.utils.book_append_sheet(wb, wsExpense, "Rekap Uang Keluar");
-            XLSX.writeFile(wb, "MBG_Suci_Laporan_Lengkap.xlsx");
+            const ws = XLSX.utils.json_to_sheet(historyData);
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+            XLSX.writeFile(wb, "MBG_Suci_Export.xlsx");
         }
 
-        const resizerEl = document.getElementById('resizer');
-        const leftPanelEl = document.getElementById('leftPanel');
-        let startX = 0, startWidth = 0; 
-        resizerEl.addEventListener('mousedown', (e) => {
-            startX = e.clientX; 
-            startWidth = parseInt(window.getComputedStyle(leftPanelEl).width, 10);
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-            resizerEl.classList.add('active');
-        });
-        const onMouseMove = (e) => leftPanelEl.style.width = `${startWidth + e.clientX - startX}px`;
-        const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); resizerEl.classList.remove('active'); };
+        // UTILS
+        function formatRupiah(n) { return new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits:0}).format(n); }
+        function formatDate(d) { if(!d) return '-'; const dd = new Date(d); return `${dd.getDate()}/${dd.getMonth()+1}/${dd.getFullYear()}`; }
+        function showLoading(s) { document.getElementById('loading-overlay').style.display = s ? 'flex' : 'none'; }
+
     </script>
 </body>
 </html>
