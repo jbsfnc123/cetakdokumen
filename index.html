@@ -30,13 +30,13 @@
 
         /* Mobile Responsive */
         @media (max-width: 768px) {
-            .main-container { flex-direction: column; overflow-y: auto; } /* Allow body scroll on mobile */
+            .main-container { flex-direction: column; overflow-y: auto; }
             .left-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); height: auto; flex-shrink: 0; }
             .right-panel { width: 100%; height: auto; overflow: visible; }
             .resizer { display: none; }
             .navbar { padding: 0 10px; }
             .app-title { font-size: 1rem; }
-            /* Hide non-essential buttons on mobile navbar if needed */
+            .summary-cards { grid-template-columns: 1fr; } /* Stack cards on mobile */
         }
 
         /* Components */
@@ -60,17 +60,32 @@
         .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
 
         /* Dashboard Elements */
-        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 5px; }
+        .stat-card { background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
+        .stat-value { font-size: 1.25rem; font-weight: 700; color: var(--text-main); }
+        .text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-primary { color: var(--primary); }
+
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .mode-toggle { display: flex; background: #e5e7eb; padding: 3px; border-radius: 6px; }
         .mode-btn { padding: 6px 12px; font-size: 0.85rem; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; color: var(--text-muted); }
         .mode-btn.active { background: white; color: var(--primary); shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
-        .table-container { background: white; border-radius: 8px; border: 1px solid var(--border); overflow-x: auto; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .table-container { background: white; border-radius: 8px; border: 1px solid var(--border); overflow-x: auto; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 600px; }
         th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid var(--border); }
         th { background: #f9fafb; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
         .col-money { text-align: right; font-family: monospace; font-weight: 600; }
         
+        /* Modal Popup */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 0; border-radius: 10px; width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2); animation: slideIn 0.3s; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #f9fafb; position: sticky; top: 0; }
+        .modal-body { padding: 20px; }
+        .close-modal { color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-modal:hover { color: black; }
+        @keyframes slideIn { from {transform: translateY(-50px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
+
         /* Loading & Status */
         #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:999; display:none; justify-content:center; align-items:center; flex-direction:column; }
         .spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
@@ -80,9 +95,10 @@
         .empty-state { padding: 30px; text-align: center; color: var(--text-muted); font-style: italic; }
         
         .highlight-banner { background: #fefce8; border: 1px solid #fde047; padding: 10px; border-radius: 6px; font-size: 0.85rem; color: #854d0e; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
-
-        /* Filter Section for History */
         .filter-box { background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 15px; }
+
+        /* Edit Overlay Banner in Input */
+        .editing-indicator { background: #fff7ed; border-bottom: 1px solid #fed7aa; color: #9a3412; padding: 8px 15px; font-size: 0.8rem; display: none; align-items: center; justify-content: space-between; }
     </style>
 </head>
 <body>
@@ -105,6 +121,11 @@
         <!-- PANEL KIRI: INPUT -->
         <div class="left-panel">
             
+            <div id="editing-indicator" class="editing-indicator">
+                <span>📝 Mode Edit Aktif</span>
+                <button class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem;" onclick="cancelEditMode()">Batal</button>
+            </div>
+
             <!-- 1. HEADER INFO PENGIRIMAN (GLOBAL INPUT) -->
             <div class="global-input-section">
                 <div class="section-title">1. Informasi Pengiriman</div>
@@ -136,33 +157,50 @@
             <!-- 3. FORM INPUT ITEM -->
             <div class="input-content" style="flex: 1; overflow-y: auto; padding: 15px;">
                 <div id="input-form-container">
-                    <!-- Dynamic Row will be inserted here -->
+                    <!-- Dynamic Row -->
                 </div>
             </div>
 
             <!-- 4. ACTION BUTTONS -->
             <div style="padding: 15px; border-top: 1px solid var(--border); background: white;">
-                <button class="btn btn-outline full-width" onclick="addToSession()">⬇️ Tambah ke List (Draft)</button>
+                <button id="btn-add-list" class="btn btn-outline full-width" onclick="addToSession()">⬇️ Tambah ke List (Draft)</button>
+                <button id="btn-update-db" class="btn btn-primary full-width" onclick="updateToSupabase()" style="display:none;">Update Perubahan</button>
             </div>
         </div>
 
-        <!-- PANEL KANAN: DASHBOARD & PREVIEW -->
+        <!-- PANEL KANAN: DASHBOARD -->
         <div class="right-panel">
             
+            <!-- Summary Cards (Selalu Muncul) -->
+            <div class="summary-cards">
+                <div class="stat-card">
+                    <div class="stat-label">Total Uang Masuk</div>
+                    <div class="stat-value text-success" id="summary-income">Rp 0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Uang Keluar</div>
+                    <div class="stat-value text-danger" id="summary-expense">Rp 0</div>
+                </div>
+                <div class="stat-card" style="background:#eff6ff; border-color:#bfdbfe;">
+                    <div class="stat-label">Saldo Akhir</div>
+                    <div class="stat-value text-primary" id="summary-balance">Rp 0</div>
+                </div>
+            </div>
+
             <div class="dashboard-header">
                 <div class="mode-toggle">
-                    <button class="mode-btn active" id="mode-draft" onclick="switchViewMode('draft')">Draft Saat Ini</button>
+                    <button class="mode-btn active" id="mode-draft" onclick="switchViewMode('draft')">Draft Input</button>
                     <button class="mode-btn" id="mode-history" onclick="switchViewMode('history')">Riwayat Database</button>
                 </div>
                 <div id="draft-actions">
-                    <button class="btn btn-success" onclick="saveToSupabase()">✅ Upload Semua ke Database</button>
+                    <button class="btn btn-success" onclick="saveToSupabase()">✅ Upload ke Database</button>
                 </div>
             </div>
 
             <!-- VIEW: DRAFT / CURRENT SESSION -->
             <div id="view-draft">
                 <div class="highlight-banner" id="draft-banner">
-                    <span>📝 Data ini baru disimpan di cache (belum masuk database). Klik tombol hijau untuk menyimpan.</span>
+                    <span>📝 Preview Data (Belum disimpan ke Database)</span>
                 </div>
                 
                 <div class="table-container">
@@ -176,16 +214,16 @@
                                 <th>Qty</th>
                                 <th>Harga</th>
                                 <th class="col-money">Total</th>
-                                <th>Aksi</th>
+                                <th style="text-align:center;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="draft-income-body"></tbody>
                     </table>
                 </div>
-                <br>
+
                 <div class="table-container">
                     <div style="padding: 10px 15px; background: #fef2f2; border-bottom: 1px solid var(--border); color: #991b1b; font-weight: 600;">
-                        Draft Uang Keluar
+                        Draft Uang Keluar & Sisa Saldo
                     </div>
                     <table>
                         <thead>
@@ -193,8 +231,9 @@
                                 <th>Item</th>
                                 <th>Qty</th>
                                 <th>Harga</th>
-                                <th class="col-money">Total</th>
-                                <th>Aksi</th>
+                                <th class="col-money">Keluar</th>
+                                <th class="col-money">Sisa Saldo</th>
+                                <th style="text-align:center;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="draft-expense-body"></tbody>
@@ -202,7 +241,7 @@
                 </div>
             </div>
 
-            <!-- VIEW: HISTORY / DATABASE -->
+            <!-- VIEW: HISTORY / DATABASE (GROUPED) -->
             <div id="view-history" style="display: none;">
                 <div class="filter-box">
                     <div class="form-group">
@@ -225,20 +264,34 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Tgl</th>
+                                <th>Tanggal</th>
                                 <th>Tujuan</th>
-                                <th>Tipe</th>
-                                <th>Item</th>
-                                <th>Qty</th>
-                                <th class="col-money">Total</th>
-                                <th>Aksi</th>
+                                <th class="col-money">Tot. Masuk</th>
+                                <th class="col-money">Tot. Keluar</th>
+                                <th class="col-money">Sisa Saldo</th>
+                                <th style="text-align:center;">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody id="history-body"></tbody>
+                        <tbody id="history-group-body"></tbody>
                     </table>
                 </div>
             </div>
 
+        </div>
+    </div>
+
+    <!-- MODAL DETAIL PREVIEW -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Detail Transaksi</h3>
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="modal-content-tables">
+                    <!-- Dynamic Tables Here -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -261,22 +314,24 @@
         let currentTab = 'income';
         let masterIncome = [];
         let masterExpense = [];
+        let sessionData = []; // Draft
+        let rawHistoryData = []; // Data mentah dari DB
         
-        // CACHE DATA (Session)
-        let sessionData = []; // [{tujuan, date, name, qty, price, total, type, unit}, ...]
-
-        // HISTORY DATA (Database)
-        let historyData = [];
+        // Editing State
+        let isEditing = false;
+        let editId = null;
 
         window.onload = function() {
             renderInputForm();
-            // Set default date hari ini
             document.getElementById('global-tanggal').valueAsDate = new Date();
             document.getElementById('filter-tanggal').valueAsDate = new Date();
             
-            // Cek import status
+            // Auto load localstorage if needed
             const hasData = localStorage.getItem('hasMasterData');
             if(hasData) document.getElementById('import-alert')?.remove();
+
+            // Default dashboard values
+            updateSummaryCards(0, 0);
         };
 
         // --- 1. LOGIC INPUT & UI ---
@@ -355,20 +410,19 @@
             document.getElementById('txt-total').textContent = formatRupiah(p * q);
         }
 
-        // --- 2. LOGIC CACHE / SESSION ---
+        // --- 2. LOGIC DRAFT / SESSION ---
 
         function addToSession() {
-            // 1. Validasi Global Input
+            if(isEditing) return; // Prevent add if editing DB
+
             const tujuan = document.getElementById('global-tujuan').value;
             const tanggal = document.getElementById('global-tanggal').value;
 
             if(!tujuan || !tanggal) {
-                alert("⚠️ Mohon isi TUJUAN dan TANGGAL KIRIM di bagian atas dulu.");
-                window.scrollTo(0,0);
+                alert("⚠️ Mohon isi TUJUAN dan TANGGAL KIRIM dulu.");
                 return;
             }
 
-            // 2. Ambil Data Form
             const itemSel = document.getElementById('inp-item');
             let name = "";
             if(itemSel.value === 'custom') name = document.getElementById('inp-custom').value;
@@ -383,27 +437,24 @@
                 return;
             }
 
-            // 3. Push ke Session Array
             const newItem = {
-                id_temp: Date.now(), // ID sementara
+                id_temp: Date.now(),
                 tujuan: tujuan,
-                date: tanggal, // Ini adalah Tanggal Kirim
+                date: tanggal,
                 name: name,
                 qty: qty,
                 unit: unit,
                 price: price,
                 total: price * qty,
-                type: currentTab // 'income' or 'expense'
+                type: currentTab
             };
 
             sessionData.push(newItem);
-            
-            // 4. Reset Input (Kecuali Global)
             renderInputForm();
             renderDraftTables();
             
-            // Toast / Feedback sederhana
-            const btn = document.querySelector('.left-panel .btn-outline');
+            // Toast
+            const btn = document.getElementById('btn-add-list');
             const originalText = btn.innerText;
             btn.innerText = "✅ Masuk List!";
             setTimeout(() => btn.innerText = originalText, 1000);
@@ -419,58 +470,86 @@
             const expBody = document.getElementById('draft-expense-body');
             incBody.innerHTML = ''; expBody.innerHTML = '';
 
+            // Calculate Totals for Summary
             const incomeItems = sessionData.filter(x => x.type === 'income');
             const expenseItems = sessionData.filter(x => x.type === 'expense');
 
-            function renderRow(item) {
-                return `
+            let totalIncome = incomeItems.reduce((sum, i) => sum + i.total, 0);
+            let totalExpense = expenseItems.reduce((sum, i) => sum + i.total, 0);
+
+            // Update Summary Cards
+            updateSummaryCards(totalIncome, totalExpense);
+
+            // Render Income
+            incomeItems.forEach(item => {
+                incBody.innerHTML += `
                     <tr>
-                        <td>
-                            <div style="font-weight:600;">${item.name}</div>
-                            <div style="font-size:0.75rem; color:#666;">${item.tujuan} (${formatDate(item.date)})</div>
-                        </td>
+                        <td>${item.name} <div style="font-size:0.7em; color:#666">${item.tujuan}</div></td>
                         <td>${item.qty} ${item.unit}</td>
                         <td>${formatRupiah(item.price)}</td>
                         <td class="col-money">${formatRupiah(item.total)}</td>
-                        <td><button class="btn btn-danger" style="padding:4px 8px; font-size:0.7rem;" onclick="removeFromSession(${item.id_temp})">Hapus</button></td>
+                        <td style="text-align:center;"><button class="btn btn-danger" style="padding:4px 8px; font-size:0.7rem;" onclick="removeFromSession(${item.id_temp})">X</button></td>
+                    </tr>
+                `;
+            });
+
+            // Render Expense with Running Balance
+            let currentBalance = totalIncome;
+            if(incomeItems.length > 0) {
+                expBody.innerHTML = `
+                    <tr style="background:#fff7ed; font-weight:bold;">
+                        <td colspan="4" style="text-align:right;">Saldo Awal (Total Masuk)</td>
+                        <td class="col-money">${formatRupiah(currentBalance)}</td>
+                        <td></td>
                     </tr>
                 `;
             }
 
-            if(incomeItems.length === 0) incBody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada inputan</td></tr>';
-            else incomeItems.forEach(i => incBody.innerHTML += renderRow(i));
+            expenseItems.forEach(item => {
+                currentBalance -= item.total;
+                expBody.innerHTML += `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>${item.qty} ${item.unit}</td>
+                        <td>${formatRupiah(item.price)}</td>
+                        <td class="col-money">${formatRupiah(item.total)}</td>
+                        <td class="col-money" style="font-weight:bold;">${formatRupiah(currentBalance)}</td>
+                        <td style="text-align:center;"><button class="btn btn-danger" style="padding:4px 8px; font-size:0.7rem;" onclick="removeFromSession(${item.id_temp})">X</button></td>
+                    </tr>
+                `;
+            });
 
-            if(expenseItems.length === 0) expBody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada inputan</td></tr>';
-            else expenseItems.forEach(i => expBody.innerHTML += renderRow(i));
+            if(incomeItems.length === 0) incBody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada inputan</td></tr>';
+            if(expenseItems.length === 0) expBody.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada inputan</td></tr>';
+        }
+
+        function updateSummaryCards(inc, exp) {
+            document.getElementById('summary-income').textContent = formatRupiah(inc);
+            document.getElementById('summary-expense').textContent = formatRupiah(exp);
+            document.getElementById('summary-balance').textContent = formatRupiah(inc - exp);
         }
 
         // --- 3. DATABASE ACTION ---
 
         async function saveToSupabase() {
             if(!_supabase) return alert("Konfigurasi Supabase belum diset!");
-            if(sessionData.length === 0) return alert("List draft kosong. Input data dulu.");
-
-            if(!confirm(`Yakin simpan ${sessionData.length} item ke database?`)) return;
+            if(sessionData.length === 0) return alert("List draft kosong.");
+            if(!confirm(`Simpan ${sessionData.length} item ke database?`)) return;
 
             showLoading(true);
-
-            // Bersihkan object dari properti temp sebelum kirim DB
             const dataToInsert = sessionData.map(({id_temp, ...rest}) => rest);
-
             const { error } = await _supabase.from('transaksi').insert(dataToInsert);
-
             showLoading(false);
 
-            if(error) {
-                alert("Gagal simpan: " + error.message);
-            } else {
-                alert("Sukses! Data tersimpan di Database.");
-                sessionData = []; // Clear cache
+            if(error) alert("Gagal simpan: " + error.message);
+            else {
+                alert("Sukses tersimpan!");
+                sessionData = []; 
                 renderDraftTables();
             }
         }
 
-        // --- 4. HISTORY & VIEW MODE ---
+        // --- 4. HISTORY (GROUPED) & DETAIL PREVIEW ---
 
         function switchViewMode(mode) {
             document.getElementById('mode-draft').className = mode === 'draft' ? 'mode-btn active' : 'mode-btn';
@@ -479,6 +558,8 @@
             document.getElementById('view-draft').style.display = mode === 'draft' ? 'block' : 'none';
             document.getElementById('view-history').style.display = mode === 'history' ? 'block' : 'none';
             document.getElementById('draft-actions').style.display = mode === 'draft' ? 'block' : 'none';
+
+            if(mode === 'draft') renderDraftTables(); // restore summary for draft
         }
 
         async function fetchHistory() {
@@ -488,68 +569,235 @@
             const tanggal = document.getElementById('filter-tanggal').value;
 
             showLoading(true);
-
+            
             let query = _supabase.from('transaksi').select('*').order('created_at', {ascending: false});
-
             if(tujuan !== 'all') query = query.eq('tujuan', tujuan);
             if(tanggal) query = query.eq('date', tanggal);
 
             const { data, error } = await query;
-            
             showLoading(false);
 
-            if(error) {
-                alert("Error fetch: " + error.message);
-            } else {
-                historyData = data;
-                renderHistoryTable();
+            if(error) alert("Error: " + error.message);
+            else {
+                rawHistoryData = data;
+                renderHistoryGroups();
             }
         }
 
-        function renderHistoryTable() {
-            const tbody = document.getElementById('history-body');
+        function renderHistoryGroups() {
+            const tbody = document.getElementById('history-group-body');
             tbody.innerHTML = '';
-            
-            if(historyData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Data tidak ditemukan</td></tr>';
+
+            if(rawHistoryData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Data tidak ditemukan</td></tr>';
+                updateSummaryCards(0,0);
                 return;
             }
 
-            historyData.forEach(item => {
-                const badgeColor = item.type === 'income' ? 'background:#dcfce7; color:#166534;' : 'background:#fee2e2; color:#991b1b;';
+            // Grouping Logic
+            const groups = {};
+            rawHistoryData.forEach(item => {
+                const key = `${item.date}_${item.tujuan}`;
+                if(!groups[key]) {
+                    groups[key] = { date: item.date, tujuan: item.tujuan, income: 0, expense: 0, items: [] };
+                }
+                if(item.type === 'income') groups[key].income += item.total;
+                else groups[key].expense += item.total;
+                groups[key].items.push(item);
+            });
+
+            // Calculate Global Summary for filtered data
+            let totalInc = 0, totalExp = 0;
+
+            Object.values(groups).forEach(g => {
+                totalInc += g.income;
+                totalExp += g.expense;
+                const balance = g.income - g.expense;
+                
                 tbody.innerHTML += `
                     <tr>
-                        <td>${formatDate(item.date)}</td>
-                        <td>${item.tujuan || '-'}</td>
-                        <td><span style="font-size:0.7rem; padding:2px 6px; border-radius:4px; ${badgeColor}">${item.type === 'income' ? 'Masuk' : 'Keluar'}</span></td>
-                        <td>${item.name}</td>
-                        <td>${item.qty} ${item.unit}</td>
-                        <td class="col-money">${formatRupiah(item.total)}</td>
-                        <td>
-                            <button class="btn btn-danger" style="padding:2px 6px; font-size:0.7rem;" onclick="deleteHistory(${item.id})">Hapus</button>
+                        <td>${formatDate(g.date)}</td>
+                        <td>${g.tujuan}</td>
+                        <td class="col-money text-success">${formatRupiah(g.income)}</td>
+                        <td class="col-money text-danger">${formatRupiah(g.expense)}</td>
+                        <td class="col-money" style="font-weight:bold;">${formatRupiah(balance)}</td>
+                        <td style="text-align:center;">
+                            <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="openDetailModal('${g.date}', '${g.tujuan}')">👁️ Lihat Detail</button>
                         </td>
                     </tr>
                 `;
             });
+
+            updateSummaryCards(totalInc, totalExp);
         }
 
-        async function deleteHistory(id) {
-            if(!confirm("Hapus data permanen dari database?")) return;
+        // --- 5. MODAL DETAIL & EDITING ---
+
+        function openDetailModal(date, tujuan) {
+            // Filter items for this group
+            const items = rawHistoryData.filter(x => x.date === date && x.tujuan === tujuan);
+            const modal = document.getElementById('detail-modal');
             
+            document.getElementById('modal-title').textContent = `Detail: ${tujuan} (${formatDate(date)})`;
+            renderDetailContent(items);
+            
+            modal.style.display = "block";
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').style.display = "none";
+        }
+
+        function renderDetailContent(items) {
+            const container = document.getElementById('modal-content-tables');
+            const incItems = items.filter(x => x.type === 'income');
+            const expItems = items.filter(x => x.type === 'expense');
+
+            let totalInc = incItems.reduce((s,i) => s + i.total, 0);
+            let html = '';
+
+            // INCOME TABLE
+            html += `<div style="margin-bottom:20px;">
+                <div style="background:#f0fdf4; padding:8px; font-weight:bold; color:#166534;">Uang Masuk</div>
+                <table style="border:1px solid #ddd;">
+                    <thead><tr><th>Item</th><th>Qty</th><th>Total</th><th>Aksi</th></tr></thead>
+                    <tbody>`;
+            if(incItems.length===0) html += '<tr><td colspan="4">Tidak ada data</td></tr>';
+            incItems.forEach(i => {
+                html += `<tr>
+                    <td>${i.name}</td>
+                    <td>${i.qty} ${i.unit}</td>
+                    <td class="col-money">${formatRupiah(i.total)}</td>
+                    <td style="text-align:center;">
+                        <button class="btn btn-outline" style="padding:2px 5px; font-size:0.7rem;" onclick="initEditDB(${i.id}, 'income')">✏️</button>
+                        <button class="btn btn-danger" style="padding:2px 5px; font-size:0.7rem;" onclick="deleteDBItem(${i.id})">🗑️</button>
+                    </td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+
+            // EXPENSE TABLE
+            html += `<div>
+                <div style="background:#fef2f2; padding:8px; font-weight:bold; color:#991b1b;">Uang Keluar & Sisa Saldo</div>
+                <table style="border:1px solid #ddd;">
+                    <thead><tr><th>Item</th><th>Qty</th><th>Keluar</th><th>Sisa Saldo</th><th>Aksi</th></tr></thead>
+                    <tbody>
+                    <tr style="background:#fffbeb;"><td colspan="3" style="text-align:right;">Saldo Awal</td><td class="col-money">${formatRupiah(totalInc)}</td><td></td></tr>
+            `;
+            let running = totalInc;
+            if(expItems.length===0) html += '<tr><td colspan="5">Tidak ada data</td></tr>';
+            expItems.forEach(i => {
+                running -= i.total;
+                html += `<tr>
+                    <td>${i.name}</td>
+                    <td>${i.qty} ${i.unit}</td>
+                    <td class="col-money">${formatRupiah(i.total)}</td>
+                    <td class="col-money"><b>${formatRupiah(running)}</b></td>
+                    <td style="text-align:center;">
+                        <button class="btn btn-outline" style="padding:2px 5px; font-size:0.7rem;" onclick="initEditDB(${i.id}, 'expense')">✏️</button>
+                        <button class="btn btn-danger" style="padding:2px 5px; font-size:0.7rem;" onclick="deleteDBItem(${i.id})">🗑️</button>
+                    </td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+
+            container.innerHTML = html;
+        }
+
+        // --- EDITING & DELETING DB ITEMS ---
+
+        async function deleteDBItem(id) {
+            if(!confirm("Hapus item ini permanen?")) return;
             showLoading(true);
             const { error } = await _supabase.from('transaksi').delete().eq('id', id);
-            
-            if(!error) {
-                // Remove from local array too
-                historyData = historyData.filter(x => x.id !== id);
-                renderHistoryTable();
+            if(error) {
+                alert("Error: "+error.message);
+                showLoading(false);
             } else {
-                alert("Gagal hapus: " + error.message);
+                closeModal();
+                await fetchHistory(); // Refresh main data
+                // Re-open modal if data still exists (tricky logic), better just refresh main view
             }
-            showLoading(false);
         }
 
-        // --- EXCEL IMPORT ---
+        function initEditDB(id, type) {
+            closeModal();
+            const item = rawHistoryData.find(x => x.id === id);
+            if(!item) return;
+
+            // Masuk mode edit
+            isEditing = true;
+            editId = id;
+            document.getElementById('editing-indicator').style.display = 'flex';
+            document.getElementById('btn-add-list').style.display = 'none';
+            document.getElementById('btn-update-db').style.display = 'inline-flex';
+
+            // Populate Form
+            document.getElementById('global-tujuan').value = item.tujuan;
+            document.getElementById('global-tanggal').value = item.date;
+            
+            switchTab(type);
+            document.getElementById('inp-qty').value = item.qty;
+            
+            // Logic to fill Dropdown or Manual
+            const select = document.getElementById('inp-item');
+            const list = type === 'income' ? masterIncome : masterExpense;
+            let foundIndex = list.findIndex(m => m.name === item.name);
+
+            if(foundIndex >= 0) {
+                select.value = foundIndex;
+                onItemSelect(select, type==='income');
+            } else {
+                select.value = 'custom';
+                onItemSelect(select, type==='income');
+                document.getElementById('inp-custom').value = item.name;
+                document.getElementById('inp-price').value = item.price;
+                document.getElementById('inp-unit').value = item.unit;
+                calcTotal();
+            }
+        }
+
+        async function updateToSupabase() {
+            if(!isEditing) return;
+
+            const nameVal = document.getElementById('inp-item').value === 'custom' 
+                ? document.getElementById('inp-custom').value 
+                : document.getElementById('inp-item').options[document.getElementById('inp-item').selectedIndex].text;
+            
+            const newData = {
+                tujuan: document.getElementById('global-tujuan').value,
+                date: document.getElementById('global-tanggal').value,
+                name: nameVal,
+                qty: parseFloat(document.getElementById('inp-qty').value),
+                unit: document.getElementById('inp-unit').value,
+                price: parseFloat(document.getElementById('inp-price').value),
+                total: parseFloat(document.getElementById('inp-price').value) * parseFloat(document.getElementById('inp-qty').value),
+                type: currentTab
+            };
+
+            showLoading(true);
+            const { error } = await _supabase.from('transaksi').update(newData).eq('id', editId);
+            showLoading(false);
+
+            if(error) alert("Gagal update: "+error.message);
+            else {
+                alert("Data berhasil diupdate!");
+                cancelEditMode();
+                switchViewMode('history');
+                fetchHistory(); // Refresh list
+            }
+        }
+
+        function cancelEditMode() {
+            isEditing = false;
+            editId = null;
+            document.getElementById('editing-indicator').style.display = 'none';
+            document.getElementById('btn-add-list').style.display = 'inline-flex';
+            document.getElementById('btn-update-db').style.display = 'none';
+            renderInputForm();
+        }
+
+        // --- EXCEL & UTILS ---
         document.getElementById('excelFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             const reader = new FileReader();
@@ -564,24 +812,29 @@
                     masterExpense = raw.slice(1).map(r => ({name: r[0], unit: r[1]||'-', price: r[2]||0})).filter(x=>x.name);
                 }
                 localStorage.setItem('hasMasterData', 'true');
-                alert(`Import Berhasil! ${masterIncome.length} Item Masuk, ${masterExpense.length} Item Keluar.`);
+                alert(`Import Berhasil!`);
                 renderInputForm();
             };
             reader.readAsArrayBuffer(file);
         });
         
         function exportToExcel() {
-            if(historyData.length === 0) return alert("Tidak ada data riwayat untuk diexport. Lakukan pencarian dulu.");
+            if(rawHistoryData.length === 0) return alert("Cari data dulu untuk diexport.");
             const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(historyData);
+            const ws = XLSX.utils.json_to_sheet(rawHistoryData);
             XLSX.utils.book_append_sheet(wb, ws, "Laporan");
             XLSX.writeFile(wb, "MBG_Suci_Export.xlsx");
         }
 
-        // UTILS
         function formatRupiah(n) { return new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits:0}).format(n); }
         function formatDate(d) { if(!d) return '-'; const dd = new Date(d); return `${dd.getDate()}/${dd.getMonth()+1}/${dd.getFullYear()}`; }
         function showLoading(s) { document.getElementById('loading-overlay').style.display = s ? 'flex' : 'none'; }
+        
+        // Window close click for modal
+        window.onclick = function(event) {
+            const modal = document.getElementById('detail-modal');
+            if (event.target == modal) modal.style.display = "none";
+        }
 
     </script>
 </body>
