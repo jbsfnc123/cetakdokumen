@@ -1,9 +1,6 @@
 (() => {
   const { PDFDocument } = window.PDFLib;
   const pdfjsLib = window['pdfjs-dist/build/pdf'];
-  if (pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-  }
 
   const state = {
     mode: 'page',
@@ -11,6 +8,7 @@
     batchSelectedId: null,
     editor: null,
     selectedPage: null,
+    selectedOverlayId: null,
   };
 
   const el = {
@@ -49,6 +47,15 @@
     return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   }
 
+  function copyBytes(arrayBuffer) {
+    return new Uint8Array(arrayBuffer).slice();
+  }
+
+  function toArrayBufferCopy(input) {
+    if (input instanceof Uint8Array) return input.slice().buffer;
+    return copyBytes(input).buffer;
+  }
+
   function setMode(mode) {
     state.mode = mode;
     el.modePageBtn.classList.toggle('active', mode === 'page');
@@ -60,12 +67,20 @@
   }
 
   async function loadPdfPreview(bytes) {
-    return await pdfjsLib.getDocument({ data: new Uint8Array(bytes), disableWorker: true, useWorkerFetch: false, isEvalSupported: false }).promise;
+    return await pdfjsLib.getDocument({
+      data: bytes instanceof Uint8Array ? bytes.slice() : copyBytes(bytes),
+      disableWorker: true,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+    }).promise;
   }
 
   async function moveLastPageToFirst(bytes) {
-    const srcDoc = await PDFDocument.load(bytes.slice(0));
+    const srcDoc = await PDFDocument.load(toArrayBufferCopy(bytes));
     const total = srcDoc.getPageCount();
+    if (total <= 1) {
+      return { pdfDoc: srcDoc, pageOrder: Array.from({ length: total }, (_, i) => i) };
+    }
     const pageOrder = [total - 1, ...Array.from({ length: total - 1 }, (_, i) => i)];
     const newDoc = await PDFDocument.create();
     const copiedPages = await newDoc.copyPages(srcDoc, pageOrder);
@@ -73,10 +88,46 @@
     return { pdfDoc: newDoc, pageOrder };
   }
 
+  function getEditorStorageKey(file) {
+    return `pdf_editor_overlays::${file.name}::${file.size}::${file.lastModified}`;
+  }
+
+  function persistEditorOverlays() {
+    if (!state.editor) return;
+    const payload = {
+      overlays: state.editor.overlays,
+      selectedPage: state.selectedPage,
+      selectedOverlayId: state.selectedOverlayId,
+      savedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem(state.editor.storageKey, JSON.stringify(payload));
+      const when = new Date(payload.savedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      el.editorMeta.textContent = `${state.editor.pageCount} halaman. Perubahan tersimpan sementara otomatis pada ${when}.`;
+    } catch (err) {
+      console.warn('Gagal simpan sementara:', err);
+    }
+  }
+
+  function restoreEditorOverlays(fileState) {
+    try {
+      const raw = localStorage.getItem(fileState.storageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.overlays) && parsed.overlays.length === fileState.pageCount) {
+        fileState.overlays = parsed.overlays.map(page => Array.isArray(page) ? page : []);
+      }
+      if (Number.isInteger(parsed.selectedPage)) state.selectedPage = Math.min(parsed.selectedPage, fileState.pageCount - 1);
+      state.selectedOverlayId = parsed.selectedOverlayId || null;
+    } catch (err) {
+      console.warn('Gagal memuat simpan sementara:', err);
+    }
+  }
+
   async function handleBatchFiles(fileList) {
     const files = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.pdf'));
     for (const file of files) {
-      const bytes = await file.arrayBuffer();
+      const bytes = copyBytes(await file.arrayBuffer());
       const preview = await loadPdfPreview(bytes);
       state.batchFiles.push({ id: uid(), file, bytes, pageCount: preview.numPages });
     }
@@ -152,7 +203,7 @@
   }
 
   async function loadEditor(file) {
-    const bytes = await file.arrayBuffer();
+    const bytes = copyBytes(await file.arrayBuffer());
     const preview = await loadPdfPreview(bytes);
     state.editor = {
       id: uid(),
@@ -162,8 +213,11 @@
       pageCount: preview.numPages,
       overlays: Array.from({ length: preview.numPages }, () => []),
       renderedPages: new Map(),
+      storageKey: getEditorStorageKey(file),
     };
     state.selectedPage = 0;
+    state.selectedOverlayId = null;
+    restoreEditorOverlays(state.editor);
     el.editorFileInfo.textContent = `${file.name} • ${preview.numPages} halaman`;
     el.editorMeta.textContent = `${preview.numPages} halaman. Klik halaman untuk memilih, lalu tempel gambar.`;
     await renderEditorPages();
@@ -173,6 +227,7 @@
   function resetEditor() {
     state.editor = null;
     state.selectedPage = null;
+    state.selectedOverlayId = null;
     el.editorPdfInput.value = '';
     el.imageInput.value = '';
     el.editorFileInfo.textContent = 'Belum ada file PDF editor.';
@@ -217,22 +272,37 @@
       file.renderedPages.set(pageIndex, { width: viewport.width, height: viewport.height });
 
       const wrap = card.querySelector('.page-preview-wrap');
-      wrap.addEventListener('click', () => {
+      wrap.addEventListener('click', (ev) => {
+        if (ev.target.closest('.overlay-item')) return;
         state.selectedPage = pageIndex;
-        Array.from(el.pagesContainer.querySelectorAll('.page-card')).forEach(node => {
-          node.classList.toggle('active', Number(node.dataset.pageIndex) === pageIndex);
-        });
-        updateEditorButtons();
+        state.selectedOverlayId = null;
+        refreshPageSelection();
+        persistEditorOverlays();
       });
 
       card.querySelector('.remove-overlays-btn').addEventListener('click', (ev) => {
         ev.stopPropagation();
         file.overlays[pageIndex] = [];
+        if (state.selectedPage === pageIndex) state.selectedOverlayId = null;
         renderOverlayLayer(file, pageIndex, card.querySelector('.overlay-layer'));
+        persistEditorOverlays();
       });
 
       el.pagesContainer.appendChild(card);
       renderOverlayLayer(file, pageIndex, card.querySelector('.overlay-layer'));
+    }
+  }
+
+  function refreshPageSelection() {
+    Array.from(el.pagesContainer.querySelectorAll('.page-card')).forEach(node => {
+      node.classList.toggle('active', Number(node.dataset.pageIndex) === state.selectedPage);
+    });
+    updateEditorButtons();
+    if (state.editor) {
+      Array.from(el.pagesContainer.querySelectorAll('.page-card')).forEach(node => {
+        const pageIndex = Number(node.dataset.pageIndex);
+        renderOverlayLayer(state.editor, pageIndex, node.querySelector('.overlay-layer'));
+      });
     }
   }
 
@@ -241,11 +311,13 @@
     layer.innerHTML = '';
     overlays.forEach(overlay => {
       const div = document.createElement('div');
-      div.className = 'overlay-item';
+      const isSelected = state.selectedOverlayId === overlay.id;
+      div.className = `overlay-item${isSelected ? ' selected' : ''}`;
       div.style.left = `${overlay.x * 100}%`;
       div.style.top = `${overlay.y * 100}%`;
       div.style.width = `${overlay.w * 100}%`;
       div.style.height = `${overlay.h * 100}%`;
+      div.dataset.overlayId = overlay.id;
 
       const img = document.createElement('img');
       img.src = overlay.dataUrl;
@@ -258,19 +330,24 @@
       removeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         file.overlays[pageIndex] = file.overlays[pageIndex].filter(item => item.id !== overlay.id);
+        if (state.selectedOverlayId === overlay.id) state.selectedOverlayId = null;
         renderOverlayLayer(file, pageIndex, layer);
+        persistEditorOverlays();
       });
       div.appendChild(removeBtn);
 
       const resize = document.createElement('div');
       resize.className = 'resize-handle';
       div.appendChild(resize);
+
       enableOverlayInteractions(div, overlay, file, pageIndex, layer);
       layer.appendChild(div);
     });
   }
 
-  function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
+  function clamp(n, min, max) {
+    return Math.min(max, Math.max(min, n));
+  }
 
   function enableOverlayInteractions(node, overlay, file, pageIndex, layer) {
     let mode = null;
@@ -297,20 +374,34 @@
     }
 
     function onUp() {
+      if (!mode) return;
       mode = null;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      persistEditorOverlays();
+      renderOverlayLayer(file, pageIndex, layer);
     }
 
     node.addEventListener('pointerdown', (ev) => {
       if (ev.target.classList.contains('overlay-remove')) return;
       ev.stopPropagation();
+      state.selectedPage = pageIndex;
+      state.selectedOverlayId = overlay.id;
+      refreshPageSelection();
       startX = ev.clientX;
       startY = ev.clientY;
       start = { x: overlay.x, y: overlay.y, w: overlay.w, h: overlay.h };
       mode = ev.target.classList.contains('resize-handle') ? 'resize' : 'drag';
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
+    });
+
+    node.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      state.selectedPage = pageIndex;
+      state.selectedOverlayId = overlay.id;
+      refreshPageSelection();
+      persistEditorOverlays();
     });
   }
 
@@ -328,10 +419,12 @@
     const dataUrl = await blobToDataUrl(blob);
     const overlay = { id: uid(), dataUrl, x: 0.12, y: 0.18, w: 0.76, h: 0.22 };
     state.editor.overlays[state.selectedPage].push(overlay);
+    state.selectedOverlayId = overlay.id;
     const activeCard = Array.from(el.pagesContainer.querySelectorAll('.page-card')).find(node => Number(node.dataset.pageIndex) === state.selectedPage);
     if (activeCard) {
       renderOverlayLayer(state.editor, state.selectedPage, activeCard.querySelector('.overlay-layer'));
     }
+    persistEditorOverlays();
   }
 
   async function handlePaste(event) {
@@ -349,6 +442,15 @@
     }
   }
 
+  async function dataUrlToUint8Array(dataUrl) {
+    const base64 = dataUrl.split(',')[1] || '';
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
   async function exportEditorPdf() {
     if (!state.editor) return;
     const { pdfDoc, pageOrder } = await moveLastPageToFirst(state.editor.bytes);
@@ -361,8 +463,8 @@
       const page = pdfDoc.getPage(originalToNewIndex.get(originalIndex));
       const { width, height } = page.getSize();
       for (const overlay of overlays) {
-        const bytes = await fetch(overlay.dataUrl).then(r => r.arrayBuffer());
-        const mime = overlay.dataUrl.substring(5, overlay.dataUrl.indexOf(';'));
+        const bytes = await dataUrlToUint8Array(overlay.dataUrl);
+        const mime = overlay.dataUrl.substring(5, overlay.dataUrl.indexOf(';')).toLowerCase();
         const image = mime.includes('png') ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
         const drawW = width * overlay.w;
         const drawH = height * overlay.h;
@@ -396,7 +498,7 @@
 
   el.editorPdfInput.addEventListener('change', async (e) => { const file = e.target.files?.[0]; if (file) await loadEditor(file); });
   el.imageInput.addEventListener('change', async (e) => { const file = e.target.files?.[0]; if (file) await addImageOverlayFromBlob(file); e.target.value = ''; });
-  el.pasteImageBtn.addEventListener('click', () => alert('Silakan copy area gambar/tabel dari Excel, klik halaman aktif, lalu tekan Ctrl+V. Jika browser tidak mengizinkan paste gambar, gunakan tombol Pilih gambar.'));
+  el.pasteImageBtn.addEventListener('click', () => alert('Silakan copy area gambar atau tabel dari Excel, pilih halaman aktif, lalu tekan Ctrl+V. Setelah gambar ditempel dan mouse dilepas, posisi akan tersimpan sementara otomatis. Klik gambar lagi untuk geser atau ubah ukuran.'));
   el.saveEditorBtn.addEventListener('click', exportEditorPdf);
   el.clearEditorBtn.addEventListener('click', resetEditor);
   document.addEventListener('paste', handlePaste);
