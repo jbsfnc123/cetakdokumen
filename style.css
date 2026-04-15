@@ -58,3 +58,8 @@ button.danger { color: var(--danger); background: var(--danger-soft); border-col
   .app-shell { grid-template-columns: 1fr; }
   .toolbar-panel { flex-direction: column; align-items: stretch; }
 }
+
+.overlay-item { cursor: move; }
+.overlay-item.selected { border-color: rgba(16, 185, 129, 0.95); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2), 0 8px 18px rgba(0,0,0,0.18); }
+.overlay-item .resize-handle, .overlay-item .overlay-remove { opacity: 0; pointer-events: none; }
+.overlay-item.selected .resize-handle, .overlay-item.selected .overlay-remove { opacity: 1; pointer-events: auto; }
