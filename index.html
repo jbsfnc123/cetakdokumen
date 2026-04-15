@@ -3,73 +3,137 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PDF Page Mover - Halaman Terakhir ke Depan</title>
+  <title>PDF Page Remover + Tempel Gambar</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app-shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Aplikasi Mando</p>
-        <h1>Pindahkan Halaman Terakhir PDF Menjadi Halaman Pertama</h1>
-        <p class="subtitle">
-          Jalankan langsung di browser. Bisa memproses banyak file PDF sekaligus,
-          lalu simpan hasilnya dengan nama file yang sama seperti file awal.
-        </p>
+    <aside class="sidebar">
+      <div class="panel brand">
+        <h1>PDF Tools Lokal</h1>
+        <p>Pisahkan proses <b>Page Remover</b> dan <b>Tempel Gambar</b>. Aplikasi ini dibuat agar tetap bisa dibuka dari file lokal.</p>
       </div>
-    </header>
 
-    <main class="card">
-      <section class="dropzone-wrap">
-        <label for="pdfFiles" class="dropzone" id="dropzone">
-          <input id="pdfFiles" type="file" accept="application/pdf" multiple hidden />
-          <div class="dropzone-content">
-            <div class="drop-icon">📄</div>
-            <h2>Pilih atau tarik file PDF ke sini</h2>
-            <p>Bisa pilih banyak file sekaligus</p>
+      <div class="panel mode-panel">
+        <button id="modePageBtn" class="mode-btn active" type="button">Page Remover</button>
+        <button id="modeImageBtn" class="mode-btn" type="button">Tempel Gambar</button>
+      </div>
+
+      <section id="pageModeSidebar">
+        <div class="panel">
+          <label class="label">Pilih banyak file PDF</label>
+          <input id="batchPdfInput" type="file" accept="application/pdf" multiple />
+          <p class="hint">Mode ini khusus memindahkan halaman terakhir menjadi halaman pertama.</p>
+        </div>
+
+        <div class="panel sticky-actions">
+          <button id="saveBatchSelectedBtn" class="primary" disabled>Simpan PDF terpilih</button>
+          <button id="saveBatchAllBtn" disabled>Simpan semua ke ZIP</button>
+          <button id="clearBatchBtn" class="danger">Reset daftar PDF</button>
+        </div>
+
+        <div class="panel">
+          <h2>Daftar file</h2>
+          <div id="batchFileList" class="file-list empty">Belum ada file PDF.</div>
+        </div>
+      </section>
+
+      <section id="imageModeSidebar" class="hidden">
+        <div class="panel">
+          <label class="label">Pilih 1 file PDF untuk editor gambar</label>
+          <input id="editorPdfInput" type="file" accept="application/pdf" />
+          <p class="hint">Gunakan mode ini untuk preview halaman dan menempel gambar hasil copy dari Excel.</p>
+        </div>
+
+        <div class="panel sticky-actions">
+          <button id="saveEditorBtn" class="primary" disabled>Simpan PDF editor</button>
+          <button id="clearEditorBtn" class="danger">Reset editor</button>
+        </div>
+
+        <div class="panel">
+          <h2>Info editor</h2>
+          <div id="editorFileInfo" class="muted">Belum ada file PDF editor.</div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <section id="pageModeMain">
+        <div class="panel">
+          <h2>Page Remover</h2>
+          <p class="muted">Fungsi tetap seperti sebelumnya: halaman terakhir dipindah menjadi halaman pertama. Bisa banyak file sekaligus. Nama file hasil tetap sama.</p>
+        </div>
+
+        <div class="panel">
+          <h3 id="batchCurrentTitle">Belum ada file dipilih</h3>
+          <p id="batchCurrentMeta" class="muted">Tambahkan PDF untuk mulai.</p>
+        </div>
+      </section>
+
+      <section id="imageModeMain" class="hidden">
+        <div class="panel toolbar-panel">
+          <div>
+            <h2 id="editorTitle">Editor Tempel Gambar</h2>
+            <p id="editorMeta" class="muted">Pilih PDF editor untuk mulai.</p>
           </div>
-        </label>
-      </section>
-
-      <section class="toolbar">
-        <div class="toolbar-left">
-          <button id="processBtn" class="btn primary" disabled>Proses Semua PDF</button>
-          <button id="downloadZipBtn" class="btn secondary" disabled>Download Semua (ZIP)</button>
-          <button id="clearBtn" class="btn ghost" disabled>Reset</button>
-        </div>
-        <div class="toolbar-right">
-          <span class="badge" id="fileCounter">0 file dipilih</span>
-        </div>
-      </section>
-
-      <section class="notice">
-        <strong>Urutan output:</strong> halaman terakhir dipindah ke urutan pertama, lalu halaman lainnya tetap berurutan.
-        Contoh: <code>1,2,3,4</code> menjadi <code>4,1,2,3</code>.
-      </section>
-
-      <section>
-        <div class="list-header">
-          <h3>Daftar File</h3>
-          <span id="summaryText">Belum ada file</span>
-        </div>
-        <div id="fileList" class="file-list empty">
-          <div class="empty-state">
-            Tambahkan file PDF untuk mulai memproses.
+          <div class="toolbar-actions">
+            <div class="page-box">
+              <label class="label">Halaman aktif</label>
+              <input id="selectedPageInfo" type="text" value="-" readonly />
+            </div>
+            <button id="pasteImageBtn" disabled type="button">Info paste</button>
+            <label id="uploadImageLabel" class="button-like disabled">
+              Pilih gambar
+              <input id="imageInput" type="file" accept="image/*" hidden />
+            </label>
           </div>
         </div>
-      </section>
 
-      <section class="status-panel">
-        <h3>Status Proses</h3>
-        <div id="statusLog" class="status-log">Menunggu file dipilih...</div>
+        <div class="panel tips">
+          <strong>Cara pakai:</strong>
+          <span>klik halaman yang ingin ditempeli gambar, lalu tekan <b>Ctrl+V</b> setelah copy area tabel dari Excel. Jika paste tidak muncul, gunakan tombol <b>Pilih gambar</b>.</span>
+        </div>
+
+        <section id="pagesContainer" class="pages-grid empty-state">
+          <div class="empty-card">
+            <h3>Preview halaman editor tampil di sini</h3>
+            <p>Pilih PDF editor terlebih dahulu.</p>
+          </div>
+        </section>
       </section>
     </main>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <template id="fileItemTemplate">
+    <button class="file-item" type="button">
+      <div class="file-item-top">
+        <span class="file-name"></span>
+        <span class="badge page-count"></span>
+      </div>
+      <div class="file-item-bottom">
+        <span class="muted file-status"></span>
+      </div>
+    </button>
+  </template>
+
+  <template id="pageCardTemplate">
+    <div class="page-card">
+      <div class="page-header">
+        <span class="page-title"></span>
+        <button class="remove-overlays-btn" type="button">Hapus gambar</button>
+      </div>
+      <div class="page-preview-wrap">
+        <canvas class="page-canvas"></canvas>
+        <div class="overlay-layer"></div>
+      </div>
+      <div class="page-footer muted"></div>
+    </div>
+  </template>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
-
 
