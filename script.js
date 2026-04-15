@@ -1,253 +1,408 @@
-const { PDFDocument } = PDFLib;
-
-const state = {
-  files: [],
-  processed: new Map(),
-};
-
-const pdfFilesInput = document.getElementById('pdfFiles');
-const dropzone = document.getElementById('dropzone');
-const processBtn = document.getElementById('processBtn');
-const downloadZipBtn = document.getElementById('downloadZipBtn');
-const clearBtn = document.getElementById('clearBtn');
-const fileCounter = document.getElementById('fileCounter');
-const fileList = document.getElementById('fileList');
-const summaryText = document.getElementById('summaryText');
-const statusLog = document.getElementById('statusLog');
-
-pdfFilesInput.addEventListener('change', (event) => addFiles(event.target.files));
-processBtn.addEventListener('click', processAllFiles);
-downloadZipBtn.addEventListener('click', downloadAllAsZip);
-clearBtn.addEventListener('click', resetAll);
-
-['dragenter', 'dragover'].forEach((eventName) => {
-  dropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dropzone.classList.add('dragover');
-  });
-});
-
-['dragleave', 'drop'].forEach((eventName) => {
-  dropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dropzone.classList.remove('dragover');
-  });
-});
-
-dropzone.addEventListener('drop', (event) => addFiles(event.dataTransfer.files));
-
-function addFiles(fileListLike) {
-  const incoming = Array.from(fileListLike || []).filter(
-    (file) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-  );
-
-  if (!incoming.length) {
-    setStatus('Tidak ada file PDF yang valid.');
-    return;
+(() => {
+  const { PDFDocument } = window.PDFLib;
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  if (pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
   }
 
-  const existingKeys = new Set(state.files.map((file) => `${file.name}_${file.size}_${file.lastModified}`));
-
-  for (const file of incoming) {
-    const key = `${file.name}_${file.size}_${file.lastModified}`;
-    if (!existingKeys.has(key)) {
-      state.files.push(file);
-      existingKeys.add(key);
-    }
-  }
-
-  state.processed.clear();
-  updateUI();
-  setStatus(`Total ${state.files.length} file siap diproses.`);
-}
-
-function resetAll() {
-  state.files = [];
-  state.processed.clear();
-  pdfFilesInput.value = '';
-  updateUI();
-  setStatus('Data direset. Silakan pilih file PDF lagi.');
-}
-
-function updateUI() {
-  const total = state.files.length;
-  fileCounter.textContent = `${total} file dipilih`;
-  summaryText.textContent = total ? `${state.processed.size} dari ${total} file sudah diproses` : 'Belum ada file';
-
-  processBtn.disabled = total === 0;
-  clearBtn.disabled = total === 0;
-  downloadZipBtn.disabled = state.processed.size === 0;
-
-  if (!total) {
-    fileList.className = 'file-list empty';
-    fileList.innerHTML = '<div class="empty-state">Tambahkan file PDF untuk mulai memproses.</div>';
-    return;
-  }
-
-  fileList.className = 'file-list';
-  fileList.innerHTML = '';
-
-  state.files.forEach((file, index) => {
-    const processed = state.processed.get(file.name);
-    const statusClass = processed?.status || 'pending';
-    const statusTextMap = {
-      pending: 'Belum diproses',
-      processing: 'Diproses',
-      done: 'Selesai',
-      error: 'Error',
-    };
-
-    const row = document.createElement('div');
-    row.className = 'file-item';
-    row.innerHTML = `
-      <div>
-        <div class="file-name">${index + 1}. ${escapeHtml(file.name)}</div>
-        <div class="file-meta">${formatBytes(file.size)}</div>
-      </div>
-      <div class="file-meta">${processed?.pageInfo || '-'}</div>
-      <div class="file-status ${statusClass}">${statusTextMap[statusClass]}</div>
-      <div>
-        <button class="inline-btn" ${processed?.status === 'done' ? '' : 'disabled'} data-download="${escapeAttr(file.name)}">
-          Download
-        </button>
-      </div>
-    `;
-    fileList.appendChild(row);
-  });
-
-  fileList.querySelectorAll('[data-download]').forEach((button) => {
-    button.addEventListener('click', () => downloadSingle(button.dataset.download));
-  });
-}
-
-async function processAllFiles() {
-  if (!state.files.length) return;
-
-  setStatus('Memulai proses semua file...');
-  downloadZipBtn.disabled = true;
-
-  for (const file of state.files) {
-    state.processed.set(file.name, { status: 'processing', pageInfo: 'Membaca file...' });
-    updateUI();
-
-    try {
-      const result = await rotateLastPageToFront(file);
-      state.processed.set(file.name, {
-        status: 'done',
-        blob: result.blob,
-        pageInfo: `${result.pageCount} halaman -> urutan ${result.orderPreview}`,
-      });
-      setStatus(`Sukses: ${file.name}`);
-    } catch (error) {
-      console.error(error);
-      state.processed.set(file.name, {
-        status: 'error',
-        pageInfo: error.message || 'Gagal memproses file',
-      });
-      setStatus(`Gagal: ${file.name}\n${error.message || error}`);
-    }
-
-    updateUI();
-  }
-
-  if ([...state.processed.values()].some((item) => item.status === 'done')) {
-    downloadZipBtn.disabled = false;
-    appendStatus('\nSemua proses selesai. Anda bisa download satu per satu atau sekaligus dalam ZIP.');
-  }
-}
-
-async function rotateLastPageToFront(file) {
-  const bytes = await file.arrayBuffer();
-  const srcPdf = await PDFDocument.load(bytes, { ignoreEncryption: false });
-  const pageCount = srcPdf.getPageCount();
-
-  if (pageCount < 2) {
-    throw new Error('PDF minimal harus memiliki 2 halaman.');
-  }
-
-  const newPdf = await PDFDocument.create();
-  const pageOrder = [pageCount - 1, ...Array.from({ length: pageCount - 1 }, (_, i) => i)];
-  const copiedPages = await newPdf.copyPages(srcPdf, pageOrder);
-  copiedPages.forEach((page) => newPdf.addPage(page));
-
-  const output = await newPdf.save();
-  return {
-    blob: new Blob([output], { type: 'application/pdf' }),
-    pageCount,
-    orderPreview: `${pageCount},1,2${pageCount > 3 ? ',...' : ''}`,
+  const state = {
+    mode: 'page',
+    batchFiles: [],
+    batchSelectedId: null,
+    editor: null,
+    selectedPage: null,
   };
-}
 
-function downloadSingle(fileName) {
-  const item = state.processed.get(fileName);
-  if (!item?.blob) return;
-  downloadBlob(item.blob, fileName);
-}
+  const el = {
+    modePageBtn: document.getElementById('modePageBtn'),
+    modeImageBtn: document.getElementById('modeImageBtn'),
+    pageModeSidebar: document.getElementById('pageModeSidebar'),
+    imageModeSidebar: document.getElementById('imageModeSidebar'),
+    pageModeMain: document.getElementById('pageModeMain'),
+    imageModeMain: document.getElementById('imageModeMain'),
 
-async function downloadAllAsZip() {
-  const zip = new JSZip();
-  let added = 0;
+    batchPdfInput: document.getElementById('batchPdfInput'),
+    batchFileList: document.getElementById('batchFileList'),
+    batchCurrentTitle: document.getElementById('batchCurrentTitle'),
+    batchCurrentMeta: document.getElementById('batchCurrentMeta'),
+    saveBatchSelectedBtn: document.getElementById('saveBatchSelectedBtn'),
+    saveBatchAllBtn: document.getElementById('saveBatchAllBtn'),
+    clearBatchBtn: document.getElementById('clearBatchBtn'),
 
-  for (const file of state.files) {
-    const item = state.processed.get(file.name);
-    if (item?.status === 'done' && item.blob) {
-      zip.file(file.name, item.blob);
-      added += 1;
+    editorPdfInput: document.getElementById('editorPdfInput'),
+    editorFileInfo: document.getElementById('editorFileInfo'),
+    editorTitle: document.getElementById('editorTitle'),
+    editorMeta: document.getElementById('editorMeta'),
+    saveEditorBtn: document.getElementById('saveEditorBtn'),
+    clearEditorBtn: document.getElementById('clearEditorBtn'),
+    selectedPageInfo: document.getElementById('selectedPageInfo'),
+    pasteImageBtn: document.getElementById('pasteImageBtn'),
+    uploadImageLabel: document.getElementById('uploadImageLabel'),
+    imageInput: document.getElementById('imageInput'),
+    pagesContainer: document.getElementById('pagesContainer'),
+
+    fileItemTemplate: document.getElementById('fileItemTemplate'),
+    pageCardTemplate: document.getElementById('pageCardTemplate'),
+  };
+
+  function uid() {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    el.modePageBtn.classList.toggle('active', mode === 'page');
+    el.modeImageBtn.classList.toggle('active', mode === 'image');
+    el.pageModeSidebar.classList.toggle('hidden', mode !== 'page');
+    el.pageModeMain.classList.toggle('hidden', mode !== 'page');
+    el.imageModeSidebar.classList.toggle('hidden', mode !== 'image');
+    el.imageModeMain.classList.toggle('hidden', mode !== 'image');
+  }
+
+  async function loadPdfPreview(bytes) {
+    return await pdfjsLib.getDocument({ data: new Uint8Array(bytes), disableWorker: true, useWorkerFetch: false, isEvalSupported: false }).promise;
+  }
+
+  async function moveLastPageToFirst(bytes) {
+    const srcDoc = await PDFDocument.load(bytes.slice(0));
+    const total = srcDoc.getPageCount();
+    const pageOrder = [total - 1, ...Array.from({ length: total - 1 }, (_, i) => i)];
+    const newDoc = await PDFDocument.create();
+    const copiedPages = await newDoc.copyPages(srcDoc, pageOrder);
+    copiedPages.forEach(p => newDoc.addPage(p));
+    return { pdfDoc: newDoc, pageOrder };
+  }
+
+  async function handleBatchFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+    for (const file of files) {
+      const bytes = await file.arrayBuffer();
+      const preview = await loadPdfPreview(bytes);
+      state.batchFiles.push({ id: uid(), file, bytes, pageCount: preview.numPages });
+    }
+    if (!state.batchSelectedId && state.batchFiles[0]) state.batchSelectedId = state.batchFiles[0].id;
+    renderBatchFileList();
+    updateBatchButtons();
+  }
+
+  function getBatchSelected() {
+    return state.batchFiles.find(f => f.id === state.batchSelectedId) || null;
+  }
+
+  function renderBatchFileList() {
+    const current = getBatchSelected();
+    if (!state.batchFiles.length) {
+      el.batchFileList.className = 'file-list empty';
+      el.batchFileList.textContent = 'Belum ada file PDF.';
+      el.batchCurrentTitle.textContent = 'Belum ada file dipilih';
+      el.batchCurrentMeta.textContent = 'Tambahkan PDF untuk mulai.';
+      return;
+    }
+    el.batchFileList.className = 'file-list';
+    el.batchFileList.innerHTML = '';
+    state.batchFiles.forEach(item => {
+      const node = el.fileItemTemplate.content.firstElementChild.cloneNode(true);
+      node.classList.toggle('active', item.id === state.batchSelectedId);
+      node.querySelector('.file-name').textContent = item.file.name;
+      node.querySelector('.page-count').textContent = `${item.pageCount} hal.`;
+      node.querySelector('.file-status').textContent = 'Siap diproses: halaman terakhir menjadi halaman pertama';
+      node.addEventListener('click', () => {
+        state.batchSelectedId = item.id;
+        renderBatchFileList();
+        updateBatchButtons();
+      });
+      el.batchFileList.appendChild(node);
+    });
+    if (current) {
+      el.batchCurrentTitle.textContent = current.file.name;
+      el.batchCurrentMeta.textContent = `${current.pageCount} halaman. Saat simpan, halaman terakhir akan dipindah ke posisi pertama.`;
     }
   }
 
-  if (!added) {
-    setStatus('Belum ada file hasil proses untuk di-download.');
-    return;
+  function updateBatchButtons() {
+    const hasFiles = state.batchFiles.length > 0;
+    el.saveBatchAllBtn.disabled = !hasFiles;
+    el.saveBatchSelectedBtn.disabled = !getBatchSelected();
   }
 
-  setStatus('Membuat file ZIP...');
-  const zipBlob = await zip.generateAsync({ type: 'blob' });
-  downloadBlob(zipBlob, 'hasil-pdf-rotasi.zip');
-  appendStatus('\nZIP berhasil dibuat dan di-download.');
-}
+  async function exportBatchSelected() {
+    const selected = getBatchSelected();
+    if (!selected) return;
+    const { pdfDoc } = await moveLastPageToFirst(selected.bytes);
+    const bytes = await pdfDoc.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), selected.file.name);
+  }
 
-function downloadBlob(blob, fileName) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+  async function exportBatchAll() {
+    const zip = new JSZip();
+    for (const item of state.batchFiles) {
+      const { pdfDoc } = await moveLastPageToFirst(item.bytes);
+      zip.file(item.file.name, await pdfDoc.save());
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, 'hasil-pdf.zip');
+  }
 
-function setStatus(message) {
-  statusLog.textContent = message;
-}
+  function resetBatch() {
+    state.batchFiles = [];
+    state.batchSelectedId = null;
+    el.batchPdfInput.value = '';
+    renderBatchFileList();
+    updateBatchButtons();
+  }
 
-function appendStatus(message) {
-  statusLog.textContent += message;
-}
+  async function loadEditor(file) {
+    const bytes = await file.arrayBuffer();
+    const preview = await loadPdfPreview(bytes);
+    state.editor = {
+      id: uid(),
+      file,
+      bytes,
+      preview,
+      pageCount: preview.numPages,
+      overlays: Array.from({ length: preview.numPages }, () => []),
+      renderedPages: new Map(),
+    };
+    state.selectedPage = 0;
+    el.editorFileInfo.textContent = `${file.name} • ${preview.numPages} halaman`;
+    el.editorMeta.textContent = `${preview.numPages} halaman. Klik halaman untuk memilih, lalu tempel gambar.`;
+    await renderEditorPages();
+    updateEditorButtons();
+  }
 
-function formatBytes(bytes) {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / Math.pow(1024, index);
-  return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
-}
+  function resetEditor() {
+    state.editor = null;
+    state.selectedPage = null;
+    el.editorPdfInput.value = '';
+    el.imageInput.value = '';
+    el.editorFileInfo.textContent = 'Belum ada file PDF editor.';
+    el.editorMeta.textContent = 'Pilih PDF editor untuk mulai.';
+    el.selectedPageInfo.value = '-';
+    el.pagesContainer.className = 'pages-grid empty-state';
+    el.pagesContainer.innerHTML = `<div class="empty-card"><h3>Preview halaman editor tampil di sini</h3><p>Pilih PDF editor terlebih dahulu.</p></div>`;
+    updateEditorButtons();
+  }
 
-function escapeHtml(text) {
-  return text.replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  }[char]));
-}
+  function updateEditorButtons() {
+    const hasEditor = !!state.editor;
+    const hasPage = hasEditor && Number.isInteger(state.selectedPage);
+    el.saveEditorBtn.disabled = !hasEditor;
+    el.pasteImageBtn.disabled = !hasPage;
+    el.uploadImageLabel.classList.toggle('disabled', !hasPage);
+    el.selectedPageInfo.value = hasPage ? `Hal. ${state.selectedPage + 1}` : '-';
+  }
 
-function escapeAttr(text) {
-  return text.replace(/"/g, '&quot;');
-}
+  async function renderEditorPages() {
+    const file = state.editor;
+    if (!file) return;
+    el.pagesContainer.className = 'pages-grid';
+    el.pagesContainer.innerHTML = '';
 
-updateUI();
+    for (let pageIndex = 0; pageIndex < file.pageCount; pageIndex++) {
+      const page = await file.preview.getPage(pageIndex + 1);
+      const viewport = page.getViewport({ scale: 1.15 });
+      const card = el.pageCardTemplate.content.firstElementChild.cloneNode(true);
+      card.classList.toggle('active', pageIndex === state.selectedPage);
+      card.dataset.pageIndex = pageIndex;
+      card.querySelector('.page-title').textContent = `Halaman ${pageIndex + 1}`;
+      card.querySelector('.page-footer').textContent = pageIndex === file.pageCount - 1
+        ? 'Klik untuk memilih. Saat disimpan, halaman terakhir tetap dipindah menjadi halaman pertama.'
+        : 'Klik untuk memilih halaman aktif.';
+
+      const canvas = card.querySelector('.page-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      file.renderedPages.set(pageIndex, { width: viewport.width, height: viewport.height });
+
+      const wrap = card.querySelector('.page-preview-wrap');
+      wrap.addEventListener('click', () => {
+        state.selectedPage = pageIndex;
+        Array.from(el.pagesContainer.querySelectorAll('.page-card')).forEach(node => {
+          node.classList.toggle('active', Number(node.dataset.pageIndex) === pageIndex);
+        });
+        updateEditorButtons();
+      });
+
+      card.querySelector('.remove-overlays-btn').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        file.overlays[pageIndex] = [];
+        renderOverlayLayer(file, pageIndex, card.querySelector('.overlay-layer'));
+      });
+
+      el.pagesContainer.appendChild(card);
+      renderOverlayLayer(file, pageIndex, card.querySelector('.overlay-layer'));
+    }
+  }
+
+  function renderOverlayLayer(file, pageIndex, layer) {
+    const overlays = file.overlays[pageIndex];
+    layer.innerHTML = '';
+    overlays.forEach(overlay => {
+      const div = document.createElement('div');
+      div.className = 'overlay-item';
+      div.style.left = `${overlay.x * 100}%`;
+      div.style.top = `${overlay.y * 100}%`;
+      div.style.width = `${overlay.w * 100}%`;
+      div.style.height = `${overlay.h * 100}%`;
+
+      const img = document.createElement('img');
+      img.src = overlay.dataUrl;
+      div.appendChild(img);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'overlay-remove';
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        file.overlays[pageIndex] = file.overlays[pageIndex].filter(item => item.id !== overlay.id);
+        renderOverlayLayer(file, pageIndex, layer);
+      });
+      div.appendChild(removeBtn);
+
+      const resize = document.createElement('div');
+      resize.className = 'resize-handle';
+      div.appendChild(resize);
+      enableOverlayInteractions(div, overlay, file, pageIndex, layer);
+      layer.appendChild(div);
+    });
+  }
+
+  function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
+
+  function enableOverlayInteractions(node, overlay, file, pageIndex, layer) {
+    let mode = null;
+    let startX = 0;
+    let startY = 0;
+    let start = null;
+
+    function onMove(ev) {
+      if (!mode) return;
+      const rect = layer.getBoundingClientRect();
+      const dx = (ev.clientX - startX) / rect.width;
+      const dy = (ev.clientY - startY) / rect.height;
+      if (mode === 'drag') {
+        overlay.x = clamp(start.x + dx, 0, 1 - overlay.w);
+        overlay.y = clamp(start.y + dy, 0, 1 - overlay.h);
+      } else {
+        overlay.w = clamp(start.w + dx, 0.08, 1 - overlay.x);
+        overlay.h = clamp(start.h + dy, 0.05, 1 - overlay.y);
+      }
+      node.style.left = `${overlay.x * 100}%`;
+      node.style.top = `${overlay.y * 100}%`;
+      node.style.width = `${overlay.w * 100}%`;
+      node.style.height = `${overlay.h * 100}%`;
+    }
+
+    function onUp() {
+      mode = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+
+    node.addEventListener('pointerdown', (ev) => {
+      if (ev.target.classList.contains('overlay-remove')) return;
+      ev.stopPropagation();
+      startX = ev.clientX;
+      startY = ev.clientY;
+      start = { x: overlay.x, y: overlay.y, w: overlay.w, h: overlay.h };
+      mode = ev.target.classList.contains('resize-handle') ? 'resize' : 'drag';
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function addImageOverlayFromBlob(blob) {
+    if (!state.editor || !Number.isInteger(state.selectedPage)) return;
+    const dataUrl = await blobToDataUrl(blob);
+    const overlay = { id: uid(), dataUrl, x: 0.12, y: 0.18, w: 0.76, h: 0.22 };
+    state.editor.overlays[state.selectedPage].push(overlay);
+    const activeCard = Array.from(el.pagesContainer.querySelectorAll('.page-card')).find(node => Number(node.dataset.pageIndex) === state.selectedPage);
+    if (activeCard) {
+      renderOverlayLayer(state.editor, state.selectedPage, activeCard.querySelector('.overlay-layer'));
+    }
+  }
+
+  async function handlePaste(event) {
+    if (state.mode !== 'image' || !state.editor || !Number.isInteger(state.selectedPage)) return;
+    const items = event.clipboardData && event.clipboardData.items ? event.clipboardData.items : [];
+    for (const item of items) {
+      if (item.type && item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        if (blob) {
+          await addImageOverlayFromBlob(blob);
+          event.preventDefault();
+          return;
+        }
+      }
+    }
+  }
+
+  async function exportEditorPdf() {
+    if (!state.editor) return;
+    const { pdfDoc, pageOrder } = await moveLastPageToFirst(state.editor.bytes);
+    const originalToNewIndex = new Map();
+    pageOrder.forEach((originalIndex, newIndex) => originalToNewIndex.set(originalIndex, newIndex));
+
+    for (let originalIndex = 0; originalIndex < state.editor.pageCount; originalIndex++) {
+      const overlays = state.editor.overlays[originalIndex];
+      if (!overlays.length) continue;
+      const page = pdfDoc.getPage(originalToNewIndex.get(originalIndex));
+      const { width, height } = page.getSize();
+      for (const overlay of overlays) {
+        const bytes = await fetch(overlay.dataUrl).then(r => r.arrayBuffer());
+        const mime = overlay.dataUrl.substring(5, overlay.dataUrl.indexOf(';'));
+        const image = mime.includes('png') ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
+        const drawW = width * overlay.w;
+        const drawH = height * overlay.h;
+        const x = width * overlay.x;
+        const yTop = height * overlay.y;
+        const y = height - yTop - drawH;
+        page.drawImage(image, { x, y, width: drawW, height: drawH });
+      }
+    }
+    const bytes = await pdfDoc.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), state.editor.file.name);
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  el.modePageBtn.addEventListener('click', () => setMode('page'));
+  el.modeImageBtn.addEventListener('click', () => setMode('image'));
+  el.batchPdfInput.addEventListener('change', async (e) => { if (e.target.files?.length) await handleBatchFiles(e.target.files); });
+  el.saveBatchSelectedBtn.addEventListener('click', exportBatchSelected);
+  el.saveBatchAllBtn.addEventListener('click', exportBatchAll);
+  el.clearBatchBtn.addEventListener('click', resetBatch);
+
+  el.editorPdfInput.addEventListener('change', async (e) => { const file = e.target.files?.[0]; if (file) await loadEditor(file); });
+  el.imageInput.addEventListener('change', async (e) => { const file = e.target.files?.[0]; if (file) await addImageOverlayFromBlob(file); e.target.value = ''; });
+  el.pasteImageBtn.addEventListener('click', () => alert('Silakan copy area gambar/tabel dari Excel, klik halaman aktif, lalu tekan Ctrl+V. Jika browser tidak mengizinkan paste gambar, gunakan tombol Pilih gambar.'));
+  el.saveEditorBtn.addEventListener('click', exportEditorPdf);
+  el.clearEditorBtn.addEventListener('click', resetEditor);
+  document.addEventListener('paste', handlePaste);
+
+  setMode('page');
+  renderBatchFileList();
+  resetEditor();
+  updateBatchButtons();
+})();
