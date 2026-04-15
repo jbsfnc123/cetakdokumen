@@ -166,7 +166,7 @@
     });
     if (current) {
       el.batchCurrentTitle.textContent = current.file.name;
-      el.batchCurrentMeta.textContent = `${current.pageCount} halaman. Saat simpan, halaman terakhir akan dipindah ke posisi pertama.`;
+      el.batchCurrentMeta.textContent = `${current.pageCount} halaman. Saat simpan, hanya fitur page remover yang aktif.`;
     }
   }
 
@@ -219,7 +219,7 @@
     state.selectedOverlayId = null;
     restoreEditorOverlays(state.editor);
     el.editorFileInfo.textContent = `${file.name} • ${preview.numPages} halaman`;
-    el.editorMeta.textContent = `${preview.numPages} halaman. Klik halaman untuk memilih, lalu tempel gambar.`;
+    el.editorMeta.textContent = `${preview.numPages} halaman. Mode ini hanya menempel gambar tanpa page remover.`;
     await renderEditorPages();
     updateEditorButtons();
   }
@@ -261,7 +261,7 @@
       card.dataset.pageIndex = pageIndex;
       card.querySelector('.page-title').textContent = `Halaman ${pageIndex + 1}`;
       card.querySelector('.page-footer').textContent = pageIndex === file.pageCount - 1
-        ? 'Klik untuk memilih. Saat disimpan, halaman terakhir tetap dipindah menjadi halaman pertama.'
+        ? 'Klik untuk memilih. Klik untuk memilih halaman pada mode tempel gambar.'
         : 'Klik untuk memilih halaman aktif.';
 
       const canvas = card.querySelector('.page-canvas');
@@ -453,14 +453,12 @@
 
   async function exportEditorPdf() {
     if (!state.editor) return;
-    const { pdfDoc, pageOrder } = await moveLastPageToFirst(state.editor.bytes);
-    const originalToNewIndex = new Map();
-    pageOrder.forEach((originalIndex, newIndex) => originalToNewIndex.set(originalIndex, newIndex));
+    const pdfDoc = await PDFDocument.load(toArrayBufferCopy(state.editor.bytes));
 
-    for (let originalIndex = 0; originalIndex < state.editor.pageCount; originalIndex++) {
-      const overlays = state.editor.overlays[originalIndex];
+    for (let pageIndex = 0; pageIndex < state.editor.pageCount; pageIndex++) {
+      const overlays = state.editor.overlays[pageIndex];
       if (!overlays.length) continue;
-      const page = pdfDoc.getPage(originalToNewIndex.get(originalIndex));
+      const page = pdfDoc.getPage(pageIndex);
       const { width, height } = page.getSize();
       for (const overlay of overlays) {
         const bytes = await dataUrlToUint8Array(overlay.dataUrl);
