@@ -9,15 +9,28 @@
     editor: null,
     selectedPage: null,
     selectedOverlayId: null,
+    mergeSources: [],
+    mergePages: [],
+    mergeDragUid: null,
   };
 
   const el = {
     modePageBtn: document.getElementById('modePageBtn'),
     modeImageBtn: document.getElementById('modeImageBtn'),
+    modeMergeBtn: document.getElementById('modeMergeBtn'),
     pageModeSidebar: document.getElementById('pageModeSidebar'),
     imageModeSidebar: document.getElementById('imageModeSidebar'),
+    mergeModeSidebar: document.getElementById('mergeModeSidebar'),
     pageModeMain: document.getElementById('pageModeMain'),
     imageModeMain: document.getElementById('imageModeMain'),
+    mergeModeMain: document.getElementById('mergeModeMain'),
+
+    mergePdfInput: document.getElementById('mergePdfInput'),
+    mergePagesGrid: document.getElementById('mergePagesGrid'),
+    mergeSaveBtn: document.getElementById('mergeSaveBtn'),
+    mergeResetBtn: document.getElementById('mergeResetBtn'),
+    mergeInfo: document.getElementById('mergeInfo'),
+    mergePageTemplate: document.getElementById('mergePageTemplate'),
 
     batchPdfInput: document.getElementById('batchPdfInput'),
     batchFileList: document.getElementById('batchFileList'),
@@ -60,10 +73,13 @@
     state.mode = mode;
     el.modePageBtn.classList.toggle('active', mode === 'page');
     el.modeImageBtn.classList.toggle('active', mode === 'image');
+    el.modeMergeBtn.classList.toggle('active', mode === 'merge');
     el.pageModeSidebar.classList.toggle('hidden', mode !== 'page');
     el.pageModeMain.classList.toggle('hidden', mode !== 'page');
     el.imageModeSidebar.classList.toggle('hidden', mode !== 'image');
     el.imageModeMain.classList.toggle('hidden', mode !== 'image');
+    el.mergeModeSidebar.classList.toggle('hidden', mode !== 'merge');
+    el.mergeModeMain.classList.toggle('hidden', mode !== 'merge');
   }
 
   async function loadPdfPreview(bytes) {
