@@ -492,6 +492,156 @@
     downloadBlob(new Blob([bytes], { type: 'application/pdf' }), state.editor.file.name);
   }
 
+  // ===== Mode Gabung PDF =====
+  async function handleMergeFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+    for (const file of files) {
+      const bytes = copyBytes(await file.arrayBuffer());
+      const preview = await loadPdfPreview(bytes);
+      const srcDoc = await PDFDocument.load(toArrayBufferCopy(bytes));
+      const sourceId = uid();
+      const label = `File ${state.mergeSources.length + 1}`;
+      state.mergeSources.push({ id: sourceId, file, bytes, srcDoc, preview, pageCount: preview.numPages, label });
+      for (let i = 0; i < preview.numPages; i++) {
+        state.mergePages.push({ uid: uid(), sourceId, sourcePageIndex: i });
+      }
+    }
+    await renderMergeGrid();
+    updateMergeButtons();
+  }
+
+  function getMergeSource(sourceId) {
+    return state.mergeSources.find(s => s.id === sourceId) || null;
+  }
+
+  async function renderMergeGrid() {
+    if (!state.mergePages.length) {
+      el.mergePagesGrid.className = 'pages-grid merge-grid empty-state';
+      el.mergePagesGrid.innerHTML = `<div class="empty-card"><h3>Thumbnail halaman tampil di sini</h3><p>Pilih 2 file PDF atau lebih untuk mulai menggabungkan.</p></div>`;
+      return;
+    }
+    el.mergePagesGrid.className = 'pages-grid merge-grid';
+    el.mergePagesGrid.innerHTML = '';
+
+    for (let order = 0; order < state.mergePages.length; order++) {
+      const entry = state.mergePages[order];
+      const source = getMergeSource(entry.sourceId);
+      if (!source) continue;
+      const card = el.mergePageTemplate.content.firstElementChild.cloneNode(true);
+      card.dataset.uid = entry.uid;
+      card.querySelector('.merge-page-badge').textContent = `${source.label} · hal. ${entry.sourcePageIndex + 1}`;
+      card.querySelector('.merge-page-caption').textContent = `#${order + 1}`;
+
+      const page = await source.preview.getPage(entry.sourcePageIndex + 1);
+      const viewport = page.getViewport({ scale: 0.5 });
+      const canvas = card.querySelector('.merge-page-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      card.querySelector('.merge-page-remove').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        state.mergePages = state.mergePages.filter(p => p.uid !== entry.uid);
+        renderMergeGrid();
+        updateMergeButtons();
+      });
+
+      enableMergeDrag(card, entry.uid);
+      el.mergePagesGrid.appendChild(card);
+    }
+  }
+
+  function clearMergeDropMarkers() {
+    Array.from(el.mergePagesGrid.querySelectorAll('.merge-page-card')).forEach(node => {
+      node.classList.remove('drop-before', 'drop-after');
+    });
+  }
+
+  function enableMergeDrag(card, cardUid) {
+    card.addEventListener('dragstart', (ev) => {
+      state.mergeDragUid = cardUid;
+      card.classList.add('dragging');
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', cardUid);
+      }
+    });
+
+    card.addEventListener('dragend', () => {
+      state.mergeDragUid = null;
+      card.classList.remove('dragging');
+      clearMergeDropMarkers();
+    });
+
+    card.addEventListener('dragover', (ev) => {
+      if (!state.mergeDragUid || state.mergeDragUid === cardUid) return;
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+      const rect = card.getBoundingClientRect();
+      const after = ev.clientX > rect.left + rect.width / 2;
+      clearMergeDropMarkers();
+      card.classList.toggle('drop-after', after);
+      card.classList.toggle('drop-before', !after);
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('drop-before', 'drop-after');
+    });
+
+    card.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      const dragUid = state.mergeDragUid;
+      if (!dragUid || dragUid === cardUid) { clearMergeDropMarkers(); return; }
+      const rect = card.getBoundingClientRect();
+      const after = ev.clientX > rect.left + rect.width / 2;
+      moveMergePage(dragUid, cardUid, after);
+    });
+  }
+
+  function moveMergePage(dragUid, targetUid, after) {
+    const fromIdx = state.mergePages.findIndex(p => p.uid === dragUid);
+    if (fromIdx === -1) return;
+    const [moved] = state.mergePages.splice(fromIdx, 1);
+    let targetIdx = state.mergePages.findIndex(p => p.uid === targetUid);
+    if (targetIdx === -1) { state.mergePages.push(moved); }
+    else { state.mergePages.splice(after ? targetIdx + 1 : targetIdx, 0, moved); }
+    renderMergeGrid();
+    updateMergeButtons();
+  }
+
+  function updateMergeButtons() {
+    const totalPages = state.mergePages.length;
+    el.mergeSaveBtn.disabled = totalPages === 0;
+    if (!state.mergeSources.length) {
+      el.mergeInfo.textContent = 'Belum ada file PDF.';
+    } else {
+      el.mergeInfo.textContent = `${state.mergeSources.length} file dimuat • ${totalPages} halaman siap digabung.`;
+    }
+  }
+
+  async function exportMergedPdf() {
+    if (!state.mergePages.length) return;
+    const newDoc = await PDFDocument.create();
+    for (const entry of state.mergePages) {
+      const source = getMergeSource(entry.sourceId);
+      if (!source) continue;
+      const [copied] = await newDoc.copyPages(source.srcDoc, [entry.sourcePageIndex]);
+      newDoc.addPage(copied);
+    }
+    const bytes = await newDoc.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'gabungan.pdf');
+  }
+
+  function resetMerge() {
+    state.mergeSources = [];
+    state.mergePages = [];
+    state.mergeDragUid = null;
+    el.mergePdfInput.value = '';
+    renderMergeGrid();
+    updateMergeButtons();
+  }
+
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -505,6 +655,7 @@
 
   el.modePageBtn.addEventListener('click', () => setMode('page'));
   el.modeImageBtn.addEventListener('click', () => setMode('image'));
+  el.modeMergeBtn.addEventListener('click', () => setMode('merge'));
   el.batchPdfInput.addEventListener('change', async (e) => { if (e.target.files?.length) await handleBatchFiles(e.target.files); });
   el.saveBatchSelectedBtn.addEventListener('click', exportBatchSelected);
   el.saveBatchAllBtn.addEventListener('click', exportBatchAll);
@@ -517,8 +668,13 @@
   el.clearEditorBtn.addEventListener('click', resetEditor);
   document.addEventListener('paste', handlePaste);
 
+  el.mergePdfInput.addEventListener('change', async (e) => { if (e.target.files?.length) await handleMergeFiles(e.target.files); e.target.value = ''; });
+  el.mergeSaveBtn.addEventListener('click', exportMergedPdf);
+  el.mergeResetBtn.addEventListener('click', resetMerge);
+
   setMode('page');
   renderBatchFileList();
   resetEditor();
+  resetMerge();
   updateBatchButtons();
 })();
