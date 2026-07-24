@@ -17,6 +17,7 @@
       <div class="panel mode-panel">
         <button id="modePageBtn" class="mode-btn active" type="button">Page Remover</button>
         <button id="modeImageBtn" class="mode-btn" type="button">Tempel Gambar</button>
+        <button id="modeMergeBtn" class="mode-btn" type="button">Gabung PDF</button>
       </div>
 
       <section id="pageModeSidebar">
@@ -53,6 +54,24 @@
         <div class="panel">
           <h2>Info editor</h2>
           <div id="editorFileInfo" class="muted">Belum ada file PDF editor.</div>
+        </div>
+      </section>
+
+      <section id="mergeModeSidebar" class="hidden">
+        <div class="panel">
+          <label class="label">Pilih 2 file PDF atau lebih</label>
+          <input id="mergePdfInput" type="file" accept="application/pdf" multiple />
+          <p class="hint">Semua halaman akan muncul sebagai thumbnail. Seret untuk mengatur urutan atau menyisipkan.</p>
+        </div>
+
+        <div class="panel sticky-actions">
+          <button id="mergeSaveBtn" class="primary" disabled>Gabungkan &amp; Simpan PDF</button>
+          <button id="mergeResetBtn" class="danger">Reset</button>
+        </div>
+
+        <div class="panel">
+          <h2>Info gabung</h2>
+          <div id="mergeInfo" class="muted">Belum ada file PDF.</div>
         </div>
       </section>
     </aside>
@@ -101,6 +120,20 @@
           </div>
         </section>
       </section>
+
+      <section id="mergeModeMain" class="hidden">
+        <div class="panel">
+          <h2>Gabung PDF</h2>
+          <p class="muted">Seret halaman untuk mengubah urutan atau menyisipkan. Klik tombol × untuk menghapus halaman. Klik <b>Gabungkan &amp; Simpan PDF</b> untuk mengunduh hasilnya.</p>
+        </div>
+
+        <section id="mergePagesGrid" class="pages-grid merge-grid empty-state">
+          <div class="empty-card">
+            <h3>Thumbnail halaman tampil di sini</h3>
+            <p>Pilih 2 file PDF atau lebih untuk mulai menggabungkan.</p>
+          </div>
+        </section>
+      </section>
     </main>
   </div>
 
@@ -127,6 +160,15 @@
         <div class="overlay-layer"></div>
       </div>
       <div class="page-footer muted"></div>
+    </div>
+  </template>
+
+  <template id="mergePageTemplate">
+    <div class="merge-page-card" draggable="true">
+      <div class="merge-page-badge"></div>
+      <button class="merge-page-remove" type="button">×</button>
+      <canvas class="merge-page-canvas"></canvas>
+      <div class="merge-page-caption"></div>
     </div>
   </template>
 
