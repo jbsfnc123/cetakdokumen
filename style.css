@@ -26,7 +26,8 @@ button:hover:not(:disabled), .button-like:hover:not(.disabled) { transform: tran
 button:disabled, .button-like.disabled { opacity: 0.5; cursor: not-allowed; }
 button.primary { background: var(--primary); color: white; border-color: var(--primary); }
 button.danger { color: var(--danger); background: var(--danger-soft); border-color: #fecaca; }
-.mode-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mode-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mode-btn { padding: 10px 8px; font-size: 13px; }
 .mode-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .sticky-actions { display: grid; gap: 10px; }
 .file-list { display: grid; gap: 10px; max-height: calc(100vh - 450px); overflow: auto; }
@@ -58,6 +59,17 @@ button.danger { color: var(--danger); background: var(--danger-soft); border-col
   .app-shell { grid-template-columns: 1fr; }
   .toolbar-panel { flex-direction: column; align-items: stretch; }
 }
+
+.merge-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.merge-page-card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px; box-shadow: var(--shadow); cursor: grab; }
+.merge-page-card:active { cursor: grabbing; }
+.merge-page-card.dragging { opacity: 0.4; }
+.merge-page-card.drop-before { box-shadow: -4px 0 0 0 var(--primary); }
+.merge-page-card.drop-after { box-shadow: 4px 0 0 0 var(--primary); }
+.merge-page-canvas { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); background: #f8fafc; pointer-events: none; }
+.merge-page-badge { position: absolute; top: 6px; left: 6px; padding: 4px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: 11px; font-weight: 700; z-index: 1; }
+.merge-page-remove { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 999px; border: none; background: rgba(220, 38, 38, 0.95); color: #fff; cursor: pointer; padding: 0; line-height: 24px; font-size: 18px; z-index: 1; }
+.merge-page-caption { text-align: center; font-weight: 700; color: var(--muted); margin-top: 8px; }
 
 .overlay-item { cursor: move; }
 .overlay-item.selected { border-color: rgba(16, 185, 129, 0.95); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2), 0 8px 18px rgba(0,0,0,0.18); }
