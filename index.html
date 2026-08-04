@@ -3,52 +3,147 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PDF Page Remover + Tempel Gambar</title>
+  <title>PDF Tools Lokal</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <!-- Sprite ikon inline: tetap self-contained saat dibuka dari file:/// -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <g id="i-doc" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" />
+      </g>
+      <g id="i-image" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9.5" r="1.6" /><path d="m4 17 4.5-4.5 3.5 3.5 3-3L20 17" />
+      </g>
+      <g id="i-merge" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="9" height="9" rx="2" /><rect x="12" y="12" width="9" height="9" rx="2" /><path d="M12 7.5h4a2 2 0 0 1 2 2V12" />
+      </g>
+      <g id="i-stack" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3 9 5-9 5-9-5z" /><path d="m3 13 9 5 9-5" />
+      </g>
+      <g id="i-upload" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 9l5-5 5 5" /><path d="M12 4v12" />
+      </g>
+      <g id="i-download" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 11l5 5 5-5" /><path d="M12 16V4" />
+      </g>
+      <g id="i-zip" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /><path d="M11 4v3M13 7v3M11 10v3M13 13v3" />
+      </g>
+      <g id="i-trash" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+      </g>
+      <g id="i-x" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></g>
+      <g id="i-rotate" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 12a8 8 0 1 1-2.6-5.9" /><path d="M20 4v5h-5" />
+      </g>
+      <g id="i-sun" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+      </g>
+      <g id="i-moon" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+      </g>
+      <g id="i-help" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9" /><path d="M9.5 9.2a2.6 2.6 0 1 1 3.4 2.5c-.6.2-.9.8-.9 1.4v.4" /><path d="M12 16.8h.01" />
+      </g>
+      <g id="i-info" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 7.8h.01" />
+      </g>
+      <g id="i-reset" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 12a8 8 0 1 0 2.6-5.9" /><path d="M4 4v5h5" />
+      </g>
+    </defs>
+  </svg>
+
+  <header class="appbar">
+    <div class="brand">
+      <span class="brand-mark"><svg class="icon" viewBox="0 0 24 24"><use href="#i-doc" /></svg></span>
+      <span class="brand-text">
+        <strong>PDF Tools Lokal</strong>
+        <span>Semua proses berjalan di browser kamu</span>
+      </span>
+    </div>
+
+    <nav class="tabs" id="modeTabs" aria-label="Pilih mode">
+      <button class="tab active" type="button" data-mode="page">
+        <svg class="icon" viewBox="0 0 24 24"><use href="#i-doc" /></svg> Page Remover <span class="tab-key">1</span>
+      </button>
+      <button class="tab" type="button" data-mode="image">
+        <svg class="icon" viewBox="0 0 24 24"><use href="#i-image" /></svg> Tempel Gambar <span class="tab-key">2</span>
+      </button>
+      <button class="tab" type="button" data-mode="merge">
+        <svg class="icon" viewBox="0 0 24 24"><use href="#i-merge" /></svg> Gabung PDF <span class="tab-key">3</span>
+      </button>
+      <button class="tab" type="button" data-mode="img2pdf">
+        <svg class="icon" viewBox="0 0 24 24"><use href="#i-stack" /></svg> Gambar ke PDF <span class="tab-key">4</span>
+      </button>
+    </nav>
+
+    <div class="appbar-actions">
+      <button id="themeBtn" class="icon-btn" type="button" title="Ganti mode terang / gelap" aria-label="Ganti tema">
+        <svg class="icon" viewBox="0 0 24 24"><use href="#i-moon" id="themeIconUse" /></svg>
+      </button>
+      <button id="helpBtn" class="icon-btn" type="button" title="Bantuan &amp; pintasan keyboard" aria-label="Bantuan">
+        <svg class="icon" viewBox="0 0 24 24"><use href="#i-help" /></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- ================= SIDEBAR ================= -->
     <aside class="sidebar">
-      <div class="panel brand">
-        <h1>PDF Tools Lokal</h1>
-        <p>Pisahkan proses <b>Page Remover</b> dan <b>Tempel Gambar</b>. Aplikasi ini dibuat agar tetap bisa dibuka dari file lokal.</p>
-      </div>
-
-      <div class="panel mode-panel">
-        <button id="modePageBtn" class="mode-btn active" type="button">Page Remover</button>
-        <button id="modeImageBtn" class="mode-btn" type="button">Tempel Gambar</button>
-        <button id="modeMergeBtn" class="mode-btn" type="button">Gabung PDF</button>
-      </div>
-
-      <section id="pageModeSidebar">
+      <!-- Mode: Page Remover -->
+      <section data-panel="page" class="stack">
         <div class="panel">
-          <label class="label">Pilih banyak file PDF</label>
-          <input id="batchPdfInput" type="file" accept="application/pdf" multiple />
-          <p class="hint">Mode ini khusus memindahkan halaman terakhir menjadi halaman pertama.</p>
+          <h2>File PDF</h2>
+          <p class="hint" style="margin-top:0">Halaman terakhir setiap file dipindah menjadi halaman pertama. Nama file hasil tetap sama.</p>
+          <div class="dropzone" id="batchDrop" role="button" tabindex="0" style="margin-top:10px">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-upload" /></svg>
+            <strong>Seret PDF ke sini</strong>
+            <small>atau klik untuk memilih beberapa file</small>
+          </div>
+          <input id="batchPdfInput" class="sr-only" type="file" accept="application/pdf,.pdf" multiple />
         </div>
 
-        <div class="panel sticky-actions">
-          <button id="saveBatchSelectedBtn" class="primary" disabled>Simpan PDF terpilih</button>
-          <button id="saveBatchAllBtn" disabled>Simpan semua ke ZIP</button>
-          <button id="clearBatchBtn" class="danger">Reset daftar PDF</button>
+        <div class="panel actions">
+          <button id="saveBatchSelectedBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Simpan PDF terpilih
+          </button>
+          <button id="saveBatchAllBtn" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-zip" /></svg> Simpan semua ke ZIP
+          </button>
+          <button id="clearBatchBtn" class="ghost-danger" type="button">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset daftar
+          </button>
         </div>
 
         <div class="panel">
-          <h2>Daftar file</h2>
+          <div class="panel-head"><h2>Daftar file</h2><span id="batchCount" class="chip neutral">0 file</span></div>
           <div id="batchFileList" class="file-list empty">Belum ada file PDF.</div>
         </div>
       </section>
 
-      <section id="imageModeSidebar" class="hidden">
+      <!-- Mode: Tempel Gambar -->
+      <section data-panel="image" class="stack hidden">
         <div class="panel">
-          <label class="label">Pilih 1 file PDF untuk editor gambar</label>
-          <input id="editorPdfInput" type="file" accept="application/pdf" />
-          <p class="hint">Gunakan mode ini untuk preview halaman dan menempel gambar hasil copy dari Excel.</p>
+          <h2>PDF editor</h2>
+          <p class="hint" style="margin-top:0">Pilih 1 PDF, lalu tempel foto atau hasil copy dari Excel ke halaman mana pun.</p>
+          <div class="dropzone" id="editorDrop" role="button" tabindex="0" style="margin-top:10px">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-upload" /></svg>
+            <strong>Seret 1 file PDF</strong>
+            <small>atau klik untuk memilih</small>
+          </div>
+          <input id="editorPdfInput" class="sr-only" type="file" accept="application/pdf,.pdf" />
         </div>
 
-        <div class="panel sticky-actions">
-          <button id="saveEditorBtn" class="primary" disabled>Simpan PDF editor</button>
-          <button id="clearEditorBtn" class="danger">Reset editor</button>
+        <div class="panel actions">
+          <button id="saveEditorBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Simpan PDF editor
+          </button>
+          <button id="clearEditorBtn" class="ghost-danger" type="button">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset editor
+          </button>
         </div>
 
         <div class="panel">
@@ -57,118 +152,279 @@
         </div>
       </section>
 
-      <section id="mergeModeSidebar" class="hidden">
+      <!-- Mode: Gabung PDF -->
+      <section data-panel="merge" class="stack hidden">
         <div class="panel">
-          <label class="label">Pilih 2 file PDF atau lebih</label>
-          <input id="mergePdfInput" type="file" accept="application/pdf" multiple />
-          <p class="hint">Semua halaman akan muncul sebagai thumbnail. Seret untuk mengatur urutan atau menyisipkan.</p>
+          <h2>Sumber halaman</h2>
+          <p class="hint" style="margin-top:0">PDF dan foto boleh dicampur. Setiap foto menjadi satu halaman.</p>
+          <div class="dropzone" id="mergeDrop" role="button" tabindex="0" style="margin-top:10px">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-upload" /></svg>
+            <strong>Seret PDF &amp; foto ke sini</strong>
+            <small>atau klik untuk memilih file</small>
+          </div>
+          <input id="mergePdfInput" class="sr-only" type="file" accept="application/pdf,.pdf,image/*" multiple />
         </div>
 
-        <div class="panel sticky-actions">
-          <button id="mergeSaveBtn" class="primary" disabled>Gabungkan &amp; Simpan PDF</button>
-          <button id="mergeResetBtn" class="danger">Reset</button>
+        <div class="panel">
+          <label class="label" for="mergeImageSize">Ukuran halaman untuk foto</label>
+          <select id="mergeImageSize">
+            <option value="a4">A4 (orientasi otomatis)</option>
+            <option value="letter">Letter (orientasi otomatis)</option>
+            <option value="auto">Ikut ukuran foto</option>
+          </select>
+          <p class="hint">Hanya berlaku untuk halaman yang berasal dari foto. Halaman PDF tidak berubah.</p>
+        </div>
+
+        <div class="panel actions">
+          <button id="mergeSaveBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Gabungkan &amp; simpan
+          </button>
+          <button id="mergeResetBtn" class="ghost-danger" type="button">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset
+          </button>
         </div>
 
         <div class="panel">
           <h2>Info gabung</h2>
-          <div id="mergeInfo" class="muted">Belum ada file PDF.</div>
+          <div id="mergeInfo" class="muted">Belum ada file.</div>
+        </div>
+      </section>
+
+      <!-- Mode: Gambar ke PDF -->
+      <section data-panel="img2pdf" class="stack hidden">
+        <div class="panel">
+          <h2>Foto</h2>
+          <p class="hint" style="margin-top:0">Setiap foto menjadi satu halaman PDF, sesuai urutan di kanan.</p>
+          <div class="dropzone" id="imgDrop" role="button" tabindex="0" style="margin-top:10px">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-image" /></svg>
+            <strong>Seret foto ke sini</strong>
+            <small>JPG, JPEG, PNG, WebP, GIF, BMP</small>
+          </div>
+          <input id="imgDocInput" class="sr-only" type="file" accept="image/*" multiple />
+        </div>
+
+        <div class="panel">
+          <label class="label" for="imgPaper">Ukuran kertas</label>
+          <select id="imgPaper">
+            <option value="auto">Ikut ukuran foto (tanpa area kosong)</option>
+            <option value="a4">A4</option>
+            <option value="letter">Letter</option>
+          </select>
+          <div class="field-row" style="margin-top:10px">
+            <div>
+              <label class="label" for="imgOrient">Orientasi</label>
+              <select id="imgOrient" disabled>
+                <option value="auto">Otomatis</option>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="imgMargin">Margin</label>
+              <select id="imgMargin">
+                <option value="none">Tanpa margin</option>
+                <option value="small">Kecil</option>
+                <option value="medium">Sedang</option>
+              </select>
+            </div>
+          </div>
+          <p class="hint">Orientasi hanya aktif bila ukuran kertas bukan &ldquo;ikut ukuran foto&rdquo;.</p>
+        </div>
+
+        <div class="panel actions">
+          <button id="imgSaveBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Simpan sebagai PDF
+          </button>
+          <button id="imgResetBtn" class="ghost-danger" type="button">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset
+          </button>
+        </div>
+
+        <div class="panel">
+          <h2>Info</h2>
+          <div id="imgInfo" class="muted">Belum ada foto.</div>
         </div>
       </section>
     </aside>
 
-    <main class="main">
-      <section id="pageModeMain">
-        <div class="panel">
-          <h2>Page Remover</h2>
-          <p class="muted">Fungsi tetap seperti sebelumnya: halaman terakhir dipindah menjadi halaman pertama. Bisa banyak file sekaligus. Nama file hasil tetap sama.</p>
+    <!-- ================= WORKSPACE ================= -->
+    <main class="workspace">
+      <!-- Mode: Page Remover -->
+      <section data-panel="page" class="stack">
+        <div class="panel toolbar">
+          <div>
+            <h2 id="batchCurrentTitle">Page Remover</h2>
+            <p id="batchCurrentMeta" class="muted" style="margin:0">Tambahkan PDF untuk mulai. Halaman terakhir akan menjadi halaman pertama.</p>
+          </div>
+          <span id="batchStatusChip" class="chip neutral">Menunggu file</span>
         </div>
 
-        <div class="panel">
-          <h3 id="batchCurrentTitle">Belum ada file dipilih</h3>
-          <p id="batchCurrentMeta" class="muted">Tambahkan PDF untuk mulai.</p>
+        <section id="batchPreview" class="pages-grid"></section>
+
+        <div class="dropzone dropzone-lg" id="batchEmptyDrop" role="button" tabindex="0">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-doc" /></svg>
+          <strong>Seret file PDF ke sini</strong>
+          <small>Bisa banyak file sekaligus. Simpan satu per satu atau semuanya ke dalam ZIP.</small>
         </div>
       </section>
 
-      <section id="imageModeMain" class="hidden">
-        <div class="panel toolbar-panel">
+      <!-- Mode: Tempel Gambar -->
+      <section data-panel="image" class="stack hidden">
+        <div class="panel toolbar">
           <div>
             <h2 id="editorTitle">Editor Tempel Gambar</h2>
-            <p id="editorMeta" class="muted">Pilih PDF editor untuk mulai.</p>
+            <p id="editorMeta" class="muted" style="margin:0">Pilih PDF editor untuk mulai.</p>
           </div>
           <div class="toolbar-actions">
-            <div class="page-box">
-              <label class="label">Halaman aktif</label>
-              <input id="selectedPageInfo" type="text" value="-" readonly />
-            </div>
-            <button id="pasteImageBtn" disabled type="button">Info paste</button>
-            <label id="uploadImageLabel" class="button-like disabled">
-              Pilih gambar
-              <input id="imageInput" type="file" accept="image/*" hidden />
+            <span id="selectedPageChip" class="chip neutral">Belum ada halaman aktif</span>
+            <label id="uploadImageLabel" class="button disabled">
+              <svg class="icon" viewBox="0 0 24 24"><use href="#i-image" /></svg> Pilih foto
+              <input id="imageInput" type="file" accept="image/*" multiple hidden />
             </label>
           </div>
         </div>
 
-        <div class="panel tips">
-          <strong>Cara pakai:</strong>
-          <span>klik halaman yang ingin ditempeli gambar, lalu tekan <b>Ctrl+V</b> setelah copy area tabel dari Excel. Jika paste tidak muncul, gunakan tombol <b>Pilih gambar</b>.</span>
+        <div class="tips">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-info" /></svg>
+          <span>Klik halaman yang mau ditempeli, lalu tekan <kbd>Ctrl</kbd>+<kbd>V</kbd> setelah copy dari Excel. Foto juga bisa langsung diseret ke halaman. Klik gambar untuk memilih, seret untuk memindah, tarik sudut untuk mengubah ukuran (tahan <kbd>Shift</kbd> untuk melepas kunci rasio), <kbd>Del</kbd> untuk menghapus.</span>
         </div>
 
-        <section id="pagesContainer" class="pages-grid empty-state">
-          <div class="empty-card">
-            <h3>Preview halaman editor tampil di sini</h3>
-            <p>Pilih PDF editor terlebih dahulu.</p>
-          </div>
-        </section>
+        <section id="pagesContainer" class="pages-grid"></section>
+
+        <div class="dropzone dropzone-lg" id="editorEmptyDrop" role="button" tabindex="0">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-image" /></svg>
+          <strong>Seret 1 file PDF untuk mulai mengedit</strong>
+          <small>Preview setiap halaman akan tampil di sini.</small>
+        </div>
       </section>
 
-      <section id="mergeModeMain" class="hidden">
-        <div class="panel">
-          <h2>Gabung PDF</h2>
-          <p class="muted">Seret halaman untuk mengubah urutan atau menyisipkan. Klik tombol × untuk menghapus halaman. Klik <b>Gabungkan &amp; Simpan PDF</b> untuk mengunduh hasilnya.</p>
+      <!-- Mode: Gabung PDF -->
+      <section data-panel="merge" class="stack hidden">
+        <div class="panel toolbar">
+          <div>
+            <h2>Gabung PDF &amp; Foto</h2>
+            <p class="muted" style="margin:0">Seret thumbnail untuk mengubah urutan atau menyisipkan. Klik × untuk menghapus halaman.</p>
+          </div>
+          <span id="mergeStatusChip" class="chip neutral">Menunggu file</span>
         </div>
 
-        <section id="mergePagesGrid" class="pages-grid merge-grid empty-state">
-          <div class="empty-card">
-            <h3>Thumbnail halaman tampil di sini</h3>
-            <p>Pilih 2 file PDF atau lebih untuk mulai menggabungkan.</p>
+        <section id="mergePagesGrid" class="pages-grid thumb-grid"></section>
+
+        <div class="dropzone dropzone-lg" id="mergeEmptyDrop" role="button" tabindex="0">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-merge" /></svg>
+          <strong>Seret PDF dan foto ke sini</strong>
+          <small>Semua halaman muncul sebagai thumbnail dan bisa diurutkan bebas.</small>
+        </div>
+      </section>
+
+      <!-- Mode: Gambar ke PDF -->
+      <section data-panel="img2pdf" class="stack hidden">
+        <div class="panel toolbar">
+          <div>
+            <h2>Gambar ke PDF</h2>
+            <p class="muted" style="margin:0">Seret thumbnail untuk mengurutkan, putar foto dengan tombol rotasi, lalu simpan sebagai satu PDF.</p>
           </div>
-        </section>
+          <span id="imgStatusChip" class="chip neutral">Menunggu foto</span>
+        </div>
+
+        <section id="imgPagesGrid" class="pages-grid thumb-grid"></section>
+
+        <div class="dropzone dropzone-lg" id="imgEmptyDrop" role="button" tabindex="0">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-stack" /></svg>
+          <strong>Seret foto ke sini</strong>
+          <small>Setiap foto menjadi satu halaman PDF.</small>
+        </div>
       </section>
     </main>
   </div>
 
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <div class="busy-overlay hidden" id="busyOverlay" aria-live="polite">
+    <div class="spinner"></div>
+    <p id="busyText">Memproses…</p>
+  </div>
+
+  <div class="modal hidden" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="helpTitle">Bantuan &amp; pintasan</h2>
+        <button id="helpCloseBtn" class="icon-btn" type="button" aria-label="Tutup">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-x" /></svg>
+        </button>
+      </div>
+
+      <h3 style="margin-top:0">Pintasan keyboard</h3>
+      <ul class="shortcut-list">
+        <li><span>Pindah mode</span> <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></span></li>
+        <li><span>Simpan hasil mode aktif</span> <kbd>Ctrl</kbd> + <kbd>S</kbd></li>
+        <li><span>Tempel gambar ke halaman aktif</span> <span><kbd>Ctrl</kbd> + <kbd>V</kbd></span></li>
+        <li><span>Hapus gambar terpilih</span> <kbd>Delete</kbd></li>
+        <li><span>Geser gambar terpilih</span> <span><kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd></span></li>
+        <li><span>Geser lebih cepat</span> <span><kbd>Shift</kbd> + panah</span></li>
+        <li><span>Batal pilih / tutup dialog</span> <kbd>Esc</kbd></li>
+      </ul>
+
+      <h3>Tentang format foto</h3>
+      <ul class="plain">
+        <li>JPG, JPEG, PNG, WebP, GIF, dan BMP didukung penuh. Format selain JPG/PNG otomatis dikonversi ke PNG sebelum dimasukkan ke PDF.</li>
+        <li>HEIC/HEIF (foto bawaan iPhone) <b>tidak bisa dibaca browser</b>. Ubah dulu ke JPG sebelum diimpor.</li>
+      </ul>
+
+      <h3>Catatan</h3>
+      <ul class="plain">
+        <li>Semua pemrosesan berjalan lokal di browser, file tidak pernah diunggah ke mana pun.</li>
+        <li>Library pdf-lib, pdf.js, dan JSZip masih dimuat dari CDN, jadi browser tetap butuh internet saat halaman dibuka.</li>
+        <li>Posisi gambar di mode Tempel Gambar tersimpan sementara di browser. Kalau fotonya sangat besar, penyimpanan sementara bisa penuh dan akan muncul peringatan.</li>
+      </ul>
+    </div>
+  </div>
+
   <template id="fileItemTemplate">
-    <button class="file-item" type="button">
+    <div class="file-item" role="button" tabindex="0">
       <div class="file-item-top">
         <span class="file-name"></span>
-        <span class="badge page-count"></span>
+        <button class="file-remove" type="button" title="Hapus dari daftar" aria-label="Hapus dari daftar">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-x" /></svg>
+        </button>
       </div>
       <div class="file-item-bottom">
-        <span class="muted file-status"></span>
+        <span class="muted file-size"></span>
+        <span class="badge page-count"></span>
       </div>
-    </button>
+    </div>
   </template>
 
   <template id="pageCardTemplate">
     <div class="page-card">
       <div class="page-header">
         <span class="page-title"></span>
-        <button class="remove-overlays-btn" type="button">Hapus gambar</button>
+        <button class="remove-overlays-btn" type="button">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-trash" /></svg> Hapus gambar
+        </button>
       </div>
       <div class="page-preview-wrap">
         <canvas class="page-canvas"></canvas>
+        <div class="page-skeleton">Merender…</div>
         <div class="overlay-layer"></div>
       </div>
-      <div class="page-footer muted"></div>
+      <div class="page-footer"></div>
     </div>
   </template>
 
-  <template id="mergePageTemplate">
-    <div class="merge-page-card" draggable="true">
-      <div class="merge-page-badge"></div>
-      <button class="merge-page-remove" type="button">×</button>
-      <canvas class="merge-page-canvas"></canvas>
-      <div class="merge-page-caption"></div>
+  <template id="thumbCardTemplate">
+    <div class="thumb-card" draggable="true">
+      <div class="thumb-badge"></div>
+      <div class="thumb-tools">
+        <button class="thumb-rotate" type="button" title="Putar 90°" aria-label="Putar 90 derajat">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-rotate" /></svg>
+        </button>
+        <button class="thumb-remove danger" type="button" title="Hapus halaman" aria-label="Hapus halaman">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <img class="thumb-img" alt="" />
+      <div class="thumb-caption"><span class="thumb-order"></span><span class="thumb-note"></span></div>
     </div>
   </template>
 
