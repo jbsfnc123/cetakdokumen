@@ -12,18 +12,28 @@
   const HEIC_EXT = /\.(heic|heif)$/i;
   const THEME_KEY = 'pdf_tools_theme';
 
+  // Metode "Kuat" merender ulang halaman ke JPEG. scale = dpi / 72.
+  const COMPRESS_PRESETS = {
+    rendah: { scale: 96 / 72, quality: 0.55, label: 'Rendah (96 dpi)' },
+    sedang: { scale: 120 / 72, quality: 0.70, label: 'Sedang (120 dpi)' },
+    tinggi: { scale: 150 / 72, quality: 0.82, label: 'Tinggi (150 dpi)' },
+  };
+
   const state = {
     mode: 'page',
-    batchFiles: [],
-    batchSelectedId: null,
+    // Kumpulan dokumen bersama yang dipakai semua mode.
+    docs: [],
+    activeDocId: null,
     editor: null,
     selectedPage: null,
     selectedOverlayId: null,
-    mergeSources: [],
+    mergeExtras: [],
     mergePages: [],
     mergeImageSize: 'a4',
+    mergeInitialized: false,
     imgPages: [],
     imgOpts: { paper: 'auto', orient: 'auto', margin: 'none' },
+    compressOpts: { method: 'lossless', quality: 'sedang' },
     dragUid: null,
   };
 
@@ -31,15 +41,20 @@
   [
     'modeTabs', 'themeBtn', 'themeIconUse', 'helpBtn', 'helpModal', 'helpCloseBtn',
     'toastStack', 'busyOverlay', 'busyText',
-    'batchDrop', 'batchEmptyDrop', 'batchPdfInput', 'batchFileList', 'batchCount',
-    'batchCurrentTitle', 'batchCurrentMeta', 'batchStatusChip', 'batchPreview',
-    'saveBatchSelectedBtn', 'saveBatchAllBtn', 'clearBatchBtn',
-    'editorDrop', 'editorEmptyDrop', 'editorPdfInput', 'editorFileInfo', 'editorTitle', 'editorMeta',
-    'saveEditorBtn', 'clearEditorBtn', 'selectedPageChip', 'uploadImageLabel', 'imageInput', 'pagesContainer',
-    'mergeDrop', 'mergeEmptyDrop', 'mergePdfInput', 'mergePagesGrid', 'mergeSaveBtn', 'mergeResetBtn',
-    'mergeInfo', 'mergeStatusChip', 'mergeImageSize',
-    'imgDrop', 'imgEmptyDrop', 'imgDocInput', 'imgPagesGrid', 'imgSaveBtn', 'imgResetBtn',
+    'docDrop', 'docInput', 'docList', 'docCount', 'docSteps', 'docStepsWrap',
+    'docUndoBtn', 'docDownloadAllBtn', 'docClearBtn',
+    'batchEmptyDrop', 'batchCurrentTitle', 'batchCurrentMeta', 'batchStatusChip', 'batchPreview',
+    'batchApplyBtn', 'batchApplyAllBtn', 'saveBatchSelectedBtn', 'saveBatchAllBtn',
+    'editorEmptyDrop', 'editorFileInfo', 'editorTitle', 'editorMeta',
+    'editorApplyBtn', 'saveEditorBtn', 'clearEditorBtn', 'selectedPageChip',
+    'uploadImageLabel', 'imageInput', 'pagesContainer',
+    'mergeDrop', 'mergeEmptyDrop', 'mergePdfInput', 'mergePagesGrid', 'mergeRefreshBtn',
+    'mergeApplyBtn', 'mergeSaveBtn', 'mergeResetBtn', 'mergeInfo', 'mergeStatusChip', 'mergeImageSize',
+    'imgDrop', 'imgEmptyDrop', 'imgDocInput', 'imgPagesGrid', 'imgApplyBtn', 'imgSaveBtn', 'imgResetBtn',
     'imgInfo', 'imgStatusChip', 'imgPaper', 'imgOrient', 'imgMargin',
+    'compressEmptyDrop', 'compressMethod', 'compressQuality', 'compressApplyBtn', 'compressDownloadBtn',
+    'compressInfo', 'compressTitle', 'compressMeta', 'compressStatusChip', 'compressResult',
+    'compressResultPanel', 'compressWarning',
     'fileItemTemplate', 'pageCardTemplate', 'thumbCardTemplate',
   ].forEach(id => { el[id] = document.getElementById(id); });
 
@@ -78,6 +93,12 @@
     if (!node) return false;
     const tag = node.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable;
+  }
+
+  function withSuffix(name, suffix) {
+    const dot = name.lastIndexOf('.');
+    if (dot <= 0) return `${name}${suffix}`;
+    return `${name.slice(0, dot)}${suffix}${name.slice(dot)}`;
   }
 
   /* ==========================================================================
@@ -334,6 +355,18 @@
     }).promise;
   }
 
+  // pdf.js menahan buffer halaman yang sudah dirender. Tanpa destroy(), workspace
+  // yang menyimpan banyak dokumen sekaligus akan terus menumpuk memori.
+  function destroyPreview(preview) {
+    if (!preview) return;
+    try {
+      const result = preview.destroy();
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch (err) {
+      console.warn('Gagal melepas preview:', err);
+    }
+  }
+
   async function moveLastPageToFirst(bytes) {
     const srcDoc = await PDFDocument.load(toArrayBufferCopy(bytes));
     const total = srcDoc.getPageCount();
@@ -382,6 +415,273 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function pdfBlob(bytes) {
+    return new Blob([bytes], { type: 'application/pdf' });
+  }
+
+  /* ==========================================================================
+     DOKUMEN BERSAMA
+     Satu kumpulan dokumen dipakai seluruh mode. Setiap fitur menulis hasilnya
+     kembali lewat updateDocBytes(), sehingga bisa langsung dilanjutkan ke fitur
+     berikutnya tanpa unduh lalu upload ulang.
+     ========================================================================== */
+  function getActiveDoc() {
+    return state.docs.find(doc => doc.id === state.activeDocId) || null;
+  }
+
+  function getDoc(id) {
+    return state.docs.find(doc => doc.id === id) || null;
+  }
+
+  // Tanda tangan isi dokumen. Dipakai untuk mendeteksi apakah tampilan turunan
+  // (editor, preview) sudah basi dan perlu dibangun ulang.
+  function docSig(doc) {
+    return `${doc.size}:${doc.steps.length}`;
+  }
+
+  async function addDoc(name, bytes, stepLabel) {
+    const preview = await loadPdfPreview(bytes);
+    const doc = {
+      id: uid(),
+      name,
+      bytes,
+      preview,
+      pageCount: preview.numPages,
+      size: bytes.length,
+      steps: stepLabel ? [stepLabel] : [],
+      prevBytes: null,
+      prevSteps: null,
+    };
+    state.docs.push(doc);
+    if (!state.activeDocId) state.activeDocId = doc.id;
+    return doc;
+  }
+
+  async function updateDocBytes(doc, newBytes, stepLabel) {
+    // Preview dimuat lebih dulu: kalau hasilnya rusak, dokumen lama tetap utuh.
+    const preview = await loadPdfPreview(newBytes);
+    doc.prevBytes = doc.bytes;
+    doc.prevSteps = doc.steps.slice();
+    destroyPreview(doc.preview);
+    doc.preview = preview;
+    doc.bytes = newBytes;
+    doc.size = newBytes.length;
+    doc.pageCount = preview.numPages;
+    doc.steps.push(stepLabel);
+    clearThumbCache(doc.id);
+    renderDocList();
+    await refreshModeForDocs();
+  }
+
+  async function undoDoc(doc) {
+    if (!doc || !doc.prevBytes) return;
+    const bytes = doc.prevBytes;
+    const steps = doc.prevSteps || [];
+    const preview = await loadPdfPreview(bytes);
+    destroyPreview(doc.preview);
+    doc.preview = preview;
+    doc.bytes = bytes;
+    doc.size = bytes.length;
+    doc.pageCount = preview.numPages;
+    doc.steps = steps;
+    doc.prevBytes = null;
+    doc.prevSteps = null;
+    clearThumbCache(doc.id);
+    renderDocList();
+    await refreshModeForDocs();
+  }
+
+  async function removeDoc(id) {
+    const doc = getDoc(id);
+    if (!doc) return;
+    destroyPreview(doc.preview);
+    clearThumbCache(doc.id);
+    state.docs = state.docs.filter(item => item.id !== id);
+    if (state.activeDocId === id) {
+      state.activeDocId = state.docs[0] ? state.docs[0].id : null;
+    }
+    // Halaman merge yang menunjuk dokumen ini ikut dibuang.
+    state.mergePages = state.mergePages.filter(entry => entry.kind !== 'doc' || entry.refId !== id);
+    renderDocList();
+    await refreshModeForDocs();
+  }
+
+  async function setActiveDoc(id) {
+    if (state.activeDocId === id) return;
+    state.activeDocId = id;
+    renderDocList();
+    await refreshModeForDocs();
+  }
+
+  async function clearDocs() {
+    state.docs.forEach(doc => {
+      destroyPreview(doc.preview);
+      clearThumbCache(doc.id);
+    });
+    state.docs = [];
+    state.activeDocId = null;
+    state.mergePages = state.mergePages.filter(entry => entry.kind !== 'doc');
+    renderDocList();
+    await refreshModeForDocs();
+  }
+
+  async function handleDocFiles(fileList) {
+    const { pdfs, images } = classifyFiles(fileList);
+    if (!pdfs.length && !images.length) return;
+
+    if (pdfs.length) {
+      await withBusy('Memuat PDF…', async () => {
+        let added = 0;
+        for (let i = 0; i < pdfs.length; i++) {
+          const file = pdfs[i];
+          setBusyLabel(`Memuat PDF ${i + 1}/${pdfs.length}: ${file.name}`);
+          await tick();
+          try {
+            const bytes = copyBytes(await file.arrayBuffer());
+            await addDoc(file.name, bytes, 'Diunggah');
+            added++;
+          } catch (err) {
+            console.error(err);
+            toast(`Gagal membaca "${file.name}". File mungkin rusak atau terkunci password.`, 'error', 6000);
+          }
+        }
+        renderDocList();
+        await refreshModeForDocs();
+        if (added) toast(`${added} dokumen ditambahkan.`, 'success');
+      });
+    }
+
+    // Foto tidak bisa jadi dokumen langsung, jadi dialihkan ke mode Gambar ke PDF.
+    if (images.length) {
+      await handleImageDocFiles(images);
+      toast(`${images.length} foto masuk ke mode "Gambar ke PDF". Susun lalu simpan sebagai dokumen baru.`, 'info', 6000);
+    }
+  }
+
+  function renderDocList() {
+    const docs = state.docs;
+    el.docCount.textContent = `${docs.length} dokumen`;
+    el.docDownloadAllBtn.disabled = docs.length === 0;
+
+    const active = getActiveDoc();
+    el.docUndoBtn.disabled = !active || !active.prevBytes;
+
+    if (active && active.steps.length) {
+      el.docStepsWrap.classList.remove('hidden');
+      el.docSteps.textContent = active.steps.join(' → ');
+    } else {
+      el.docStepsWrap.classList.add('hidden');
+      el.docSteps.textContent = '';
+    }
+
+    if (!docs.length) {
+      el.docList.className = 'file-list empty';
+      el.docList.textContent = 'Belum ada dokumen.';
+      return;
+    }
+
+    el.docList.className = 'file-list';
+    el.docList.innerHTML = '';
+    docs.forEach(doc => {
+      const node = el.fileItemTemplate.content.firstElementChild.cloneNode(true);
+      node.classList.toggle('active', doc.id === state.activeDocId);
+      node.querySelector('.file-name').textContent = doc.name;
+      node.querySelector('.file-name').title = doc.name;
+      node.querySelector('.file-size').textContent = formatBytes(doc.size);
+      node.querySelector('.page-count').textContent = `${doc.pageCount} hal.`;
+
+      node.addEventListener('click', () => setActiveDoc(doc.id));
+      node.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setActiveDoc(doc.id); }
+      });
+      node.querySelector('.file-download').addEventListener('click', ev => {
+        ev.stopPropagation();
+        downloadBlob(pdfBlob(doc.bytes), doc.name);
+        toast(`"${doc.name}" diunduh.`, 'success');
+      });
+      node.querySelector('.file-remove').addEventListener('click', ev => {
+        ev.stopPropagation();
+        removeDoc(doc.id);
+      });
+      el.docList.appendChild(node);
+    });
+  }
+
+  async function downloadAllDocsZip() {
+    if (!state.docs.length) return;
+    await withBusy('Menyiapkan ZIP…', async () => {
+      const zip = new JSZip();
+      const used = new Map();
+      state.docs.forEach(doc => {
+        // Nama dokumen bisa kembar (mis. dua hasil gabungan), jadi dibuat unik.
+        const count = used.get(doc.name) || 0;
+        used.set(doc.name, count + 1);
+        zip.file(count ? withSuffix(doc.name, `-${count + 1}`) : doc.name, doc.bytes);
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(blob, 'dokumen-pdf.zip');
+      toast(`${state.docs.length} dokumen dikemas ke dokumen-pdf.zip.`, 'success');
+    });
+  }
+
+  // Membangun ulang tampilan mode aktif setelah kumpulan dokumen berubah.
+  async function refreshModeForDocs() {
+    updateEmptyStates();
+    updateDocDependentButtons();
+    if (state.mode === 'page') await renderBatchPreview();
+    else if (state.mode === 'image') await syncEditorWithActiveDoc();
+    else if (state.mode === 'compress') renderCompressPanel();
+    // Grid merge ikut dirender ulang: thumbnail dokumen yang baru diproses sudah
+    // dibuang dari cache, jadi kartu lama akan menampilkan gambar yang basi.
+    else if (state.mode === 'merge') { await renderMergeGrid(); updateMergeButtons(); }
+  }
+
+  function updateDocDependentButtons() {
+    const active = getActiveDoc();
+    const hasDocs = state.docs.length > 0;
+
+    el.batchApplyBtn.disabled = !active;
+    el.batchApplyAllBtn.disabled = !hasDocs;
+    el.saveBatchSelectedBtn.disabled = !active;
+    el.saveBatchAllBtn.disabled = !hasDocs;
+
+    el.compressApplyBtn.disabled = !active;
+    el.compressDownloadBtn.disabled = !active;
+  }
+
+  /* ==========================================================================
+     Pergantian mode
+     ========================================================================== */
+  async function setMode(mode) {
+    state.mode = mode;
+    Array.from(el.modeTabs.querySelectorAll('.tab')).forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.mode === mode);
+    });
+    Array.from(document.querySelectorAll('[data-panel]')).forEach(node => {
+      node.classList.toggle('hidden', node.dataset.panel !== mode);
+    });
+    // Mode Gabung mengambil halaman dari semua dokumen saat pertama dibuka.
+    if (mode === 'merge' && !state.mergeInitialized && state.docs.length) {
+      state.mergeInitialized = true;
+      await rebuildMergeFromDocs();
+    }
+    await refreshModeForDocs();
+  }
+
+  function updateEmptyStates() {
+    const toggle = (grid, empty, hasContent) => {
+      if (!grid || !empty) return;
+      grid.classList.toggle('hidden', !hasContent);
+      empty.classList.toggle('hidden', hasContent);
+    };
+    const hasActive = !!getActiveDoc();
+    toggle(el.batchPreview, el.batchEmptyDrop, hasActive);
+    toggle(el.pagesContainer, el.editorEmptyDrop, hasActive);
+    toggle(el.compressResultPanel, el.compressEmptyDrop, hasActive);
+    toggle(el.mergePagesGrid, el.mergeEmptyDrop, state.mergePages.length > 0);
+    toggle(el.imgPagesGrid, el.imgEmptyDrop, state.imgPages.length > 0);
   }
 
   /* ==========================================================================
@@ -444,143 +744,40 @@
   }
 
   /* ==========================================================================
-     Pergantian mode
-     ========================================================================== */
-  function setMode(mode) {
-    state.mode = mode;
-    Array.from(el.modeTabs.querySelectorAll('.tab')).forEach(tab => {
-      tab.classList.toggle('active', tab.dataset.mode === mode);
-    });
-    Array.from(document.querySelectorAll('[data-panel]')).forEach(node => {
-      node.classList.toggle('hidden', node.dataset.panel !== mode);
-    });
-    updateEmptyStates();
-  }
-
-  function updateEmptyStates() {
-    const toggle = (grid, empty, hasContent) => {
-      grid.classList.toggle('hidden', !hasContent);
-      empty.classList.toggle('hidden', hasContent);
-    };
-    toggle(el.batchPreview, el.batchEmptyDrop, state.batchFiles.length > 0);
-    toggle(el.pagesContainer, el.editorEmptyDrop, !!state.editor);
-    toggle(el.mergePagesGrid, el.mergeEmptyDrop, state.mergePages.length > 0);
-    toggle(el.imgPagesGrid, el.imgEmptyDrop, state.imgPages.length > 0);
-  }
-
-  /* ==========================================================================
      MODE 1 - Page Remover
      ========================================================================== */
-  async function handleBatchFiles(fileList) {
-    const { pdfs } = classifyFiles(fileList);
-    if (!pdfs.length) {
-      toast('Tidak ada file PDF pada pilihan tadi.', 'warning');
-      return;
-    }
-    await withBusy('Memuat PDF…', async () => {
-      let added = 0;
-      for (let i = 0; i < pdfs.length; i++) {
-        const file = pdfs[i];
-        setBusyLabel(`Memuat PDF ${i + 1}/${pdfs.length}: ${file.name}`);
-        await tick();
-        try {
-          const bytes = copyBytes(await file.arrayBuffer());
-          const preview = await loadPdfPreview(bytes);
-          state.batchFiles.push({ id: uid(), file, bytes, preview, pageCount: preview.numPages });
-          added++;
-        } catch (err) {
-          console.error(err);
-          toast(`Gagal membaca "${file.name}". File mungkin rusak atau terkunci password.`, 'error', 6000);
-        }
-      }
-      if (!state.batchSelectedId && state.batchFiles[0]) state.batchSelectedId = state.batchFiles[0].id;
-      renderBatchFileList();
-      await renderBatchPreview();
-      updateBatchButtons();
-      if (added) toast(`${added} file PDF ditambahkan.`, 'success');
-    });
-  }
-
-  function getBatchSelected() {
-    return state.batchFiles.find(item => item.id === state.batchSelectedId) || null;
-  }
-
-  function selectBatchFile(id) {
-    state.batchSelectedId = id;
-    renderBatchFileList();
-    renderBatchPreview();
-    updateBatchButtons();
-  }
-
-  function removeBatchFile(id) {
-    state.batchFiles = state.batchFiles.filter(item => item.id !== id);
-    clearThumbCache(id);
-    if (state.batchSelectedId === id) {
-      state.batchSelectedId = state.batchFiles[0] ? state.batchFiles[0].id : null;
-    }
-    renderBatchFileList();
-    renderBatchPreview();
-    updateBatchButtons();
-  }
-
-  function renderBatchFileList() {
-    el.batchCount.textContent = `${state.batchFiles.length} file`;
-    if (!state.batchFiles.length) {
-      el.batchFileList.className = 'file-list empty';
-      el.batchFileList.textContent = 'Belum ada file PDF.';
-      el.batchCurrentTitle.textContent = 'Page Remover';
-      el.batchCurrentMeta.textContent = 'Tambahkan PDF untuk mulai. Halaman terakhir akan menjadi halaman pertama.';
-      el.batchStatusChip.textContent = 'Menunggu file';
-      return;
-    }
-
-    el.batchFileList.className = 'file-list';
-    el.batchFileList.innerHTML = '';
-    state.batchFiles.forEach(item => {
-      const node = el.fileItemTemplate.content.firstElementChild.cloneNode(true);
-      node.classList.toggle('active', item.id === state.batchSelectedId);
-      node.querySelector('.file-name').textContent = item.file.name;
-      node.querySelector('.file-size').textContent = formatBytes(item.file.size);
-      node.querySelector('.page-count').textContent = `${item.pageCount} hal.`;
-      node.addEventListener('click', () => selectBatchFile(item.id));
-      node.addEventListener('keydown', ev => {
-        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); selectBatchFile(item.id); }
-      });
-      node.querySelector('.file-remove').addEventListener('click', ev => {
-        ev.stopPropagation();
-        removeBatchFile(item.id);
-      });
-      el.batchFileList.appendChild(node);
-    });
-
-    const current = getBatchSelected();
-    if (current) {
-      el.batchCurrentTitle.textContent = current.file.name;
-      el.batchCurrentMeta.textContent = current.pageCount > 1
-        ? `${current.pageCount} halaman. Preview di bawah sudah menampilkan urutan hasil.`
-        : `${current.pageCount} halaman. File 1 halaman disimpan apa adanya.`;
-      el.batchStatusChip.textContent = `${state.batchFiles.length} file siap`;
-    }
-  }
-
   // Preview urutan hasil: halaman terakhir tampil paling depan.
   async function renderBatchPreview() {
-    const current = getBatchSelected();
+    const doc = getActiveDoc();
     updateEmptyStates();
-    if (!current) {
+    if (!doc) {
       el.batchPreview.innerHTML = '';
+      el.batchCurrentTitle.textContent = 'Page Remover';
+      el.batchCurrentMeta.textContent = 'Tambahkan dokumen untuk mulai. Halaman terakhir akan menjadi halaman pertama.';
+      el.batchStatusChip.textContent = 'Menunggu dokumen';
+      el.batchStatusChip.className = 'chip neutral';
       return;
     }
+
+    el.batchCurrentTitle.textContent = doc.name;
+    el.batchStatusChip.textContent = `${state.docs.length} dokumen`;
+    el.batchStatusChip.className = 'chip';
     el.batchPreview.innerHTML = '';
-    const total = current.pageCount;
+
+    const total = doc.pageCount;
     const fullOrder = total > 1
       ? [total - 1, ...Array.from({ length: total - 1 }, (_, i) => i)]
       : Array.from({ length: total }, (_, i) => i);
     // Preview dibatasi agar PDF ratusan halaman tidak membekukan tampilan.
     const order = fullOrder.slice(0, BATCH_PREVIEW_LIMIT);
-    if (fullOrder.length > order.length) {
-      el.batchCurrentMeta.textContent = `${total} halaman. Preview menampilkan ${order.length} halaman pertama dari urutan hasil.`;
-    }
+    el.batchCurrentMeta.textContent = fullOrder.length > order.length
+      ? `${total} halaman. Preview menampilkan ${order.length} halaman pertama dari urutan hasil.`
+      : (total > 1
+        ? `${total} halaman. Preview di bawah sudah menampilkan urutan hasil.`
+        : `${total} halaman. Dokumen 1 halaman tidak berubah.`);
+
+    const renderToken = doc.id + docSig(doc);
+    el.batchPreview.dataset.token = renderToken;
 
     for (let position = 0; position < order.length; position++) {
       const sourceIndex = order[position];
@@ -593,97 +790,125 @@
       card.querySelector('.thumb-note').textContent = '';
       el.batchPreview.appendChild(card);
       try {
-        card.querySelector('.thumb-img').src = await pdfPageThumb(current.id, current.preview, sourceIndex, 0);
+        const src = await pdfPageThumb(doc.id, doc.preview, sourceIndex, 0);
+        // Dokumen bisa berganti selagi thumbnail dirender.
+        if (el.batchPreview.dataset.token !== renderToken) return;
+        card.querySelector('.thumb-img').src = src;
       } catch (err) {
         console.error(err);
       }
     }
   }
 
-  function updateBatchButtons() {
-    el.saveBatchAllBtn.disabled = state.batchFiles.length === 0;
-    el.saveBatchSelectedBtn.disabled = !getBatchSelected();
+  async function applyBatchToDoc(doc) {
+    const { pdfDoc } = await moveLastPageToFirst(doc.bytes);
+    const bytes = await pdfDoc.save();
+    await updateDocBytes(doc, bytes, 'Page Remover');
+  }
+
+  async function applyBatchActive() {
+    const doc = getActiveDoc();
+    if (!doc) return;
+    if (doc.pageCount <= 1) {
+      toast('Dokumen hanya punya 1 halaman, tidak ada yang perlu dipindah.', 'info');
+      return;
+    }
+    await withBusy(`Memproses ${doc.name}…`, async () => {
+      await applyBatchToDoc(doc);
+      toast(`Halaman terakhir "${doc.name}" dipindah ke depan.`, 'success');
+    });
+  }
+
+  async function applyBatchAll() {
+    if (!state.docs.length) return;
+    await withBusy('Memproses semua dokumen…', async () => {
+      let done = 0;
+      for (let i = 0; i < state.docs.length; i++) {
+        const doc = state.docs[i];
+        setBusyLabel(`Memproses ${i + 1}/${state.docs.length}: ${doc.name}`);
+        await tick();
+        if (doc.pageCount <= 1) continue;
+        await applyBatchToDoc(doc);
+        done++;
+      }
+      toast(done ? `${done} dokumen diproses.` : 'Tidak ada dokumen yang punya lebih dari 1 halaman.', done ? 'success' : 'info');
+    });
   }
 
   async function exportBatchSelected() {
-    const selected = getBatchSelected();
-    if (!selected) return;
-    await withBusy(`Menyimpan ${selected.file.name}…`, async () => {
-      const { pdfDoc } = await moveLastPageToFirst(selected.bytes);
+    const doc = getActiveDoc();
+    if (!doc) return;
+    await withBusy(`Menyimpan ${doc.name}…`, async () => {
+      const { pdfDoc } = await moveLastPageToFirst(doc.bytes);
       const bytes = await pdfDoc.save();
-      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), selected.file.name);
-      toast(`"${selected.file.name}" berhasil disimpan.`, 'success');
+      downloadBlob(pdfBlob(bytes), doc.name);
+      toast(`"${doc.name}" berhasil diunduh.`, 'success');
     });
   }
 
   async function exportBatchAll() {
-    if (!state.batchFiles.length) return;
+    if (!state.docs.length) return;
     await withBusy('Menyiapkan ZIP…', async () => {
       const zip = new JSZip();
-      for (let i = 0; i < state.batchFiles.length; i++) {
-        const item = state.batchFiles[i];
-        setBusyLabel(`Memproses ${i + 1}/${state.batchFiles.length}: ${item.file.name}`);
+      const used = new Map();
+      for (let i = 0; i < state.docs.length; i++) {
+        const doc = state.docs[i];
+        setBusyLabel(`Memproses ${i + 1}/${state.docs.length}: ${doc.name}`);
         await tick();
-        const { pdfDoc } = await moveLastPageToFirst(item.bytes);
-        zip.file(item.file.name, await pdfDoc.save());
+        const { pdfDoc } = await moveLastPageToFirst(doc.bytes);
+        const count = used.get(doc.name) || 0;
+        used.set(doc.name, count + 1);
+        zip.file(count ? withSuffix(doc.name, `-${count + 1}`) : doc.name, await pdfDoc.save());
       }
       setBusyLabel('Mengemas ZIP…');
       const blob = await zip.generateAsync({ type: 'blob' });
       downloadBlob(blob, 'hasil-pdf.zip');
-      toast(`${state.batchFiles.length} file dikemas ke hasil-pdf.zip.`, 'success');
+      toast(`${state.docs.length} dokumen dikemas ke hasil-pdf.zip.`, 'success');
     });
-  }
-
-  function resetBatch() {
-    state.batchFiles.forEach(item => clearThumbCache(item.id));
-    state.batchFiles = [];
-    state.batchSelectedId = null;
-    el.batchPdfInput.value = '';
-    el.batchPreview.innerHTML = '';
-    renderBatchFileList();
-    updateBatchButtons();
-    updateEmptyStates();
   }
 
   /* ==========================================================================
      MODE 2 - Tempel Gambar
      ========================================================================== */
-  function getEditorStorageKey(file) {
-    return `pdf_editor_overlays::${file.name}::${file.size}::${file.lastModified}`;
+  // Kunci dibuat dari isi dokumen, bukan metadata file. Setelah dokumen diproses
+  // fitur lain, kuncinya berubah sehingga overlay lama tidak tertempel dua kali.
+  function getEditorStorageKey(doc) {
+    return `pdf_editor_overlays::${doc.name}::${doc.size}::${doc.steps.length}`;
   }
 
   function persistEditorOverlays() {
-    if (!state.editor) return;
+    const editor = state.editor;
+    if (!editor) return;
     const payload = {
-      overlays: state.editor.overlays,
+      overlays: editor.overlays,
       selectedPage: state.selectedPage,
       selectedOverlayId: state.selectedOverlayId,
       savedAt: Date.now(),
     };
     try {
-      localStorage.setItem(state.editor.storageKey, JSON.stringify(payload));
+      localStorage.setItem(editor.storageKey, JSON.stringify(payload));
       const when = new Date(payload.savedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      el.editorMeta.textContent = `${state.editor.pageCount} halaman • perubahan tersimpan sementara ${when}`;
+      el.editorMeta.textContent = `${editor.pageCount} halaman • perubahan tersimpan sementara ${when}`;
     } catch (err) {
       console.warn('Gagal simpan sementara:', err);
-      el.editorMeta.textContent = `${state.editor.pageCount} halaman • penyimpanan sementara penuh`;
-      if (!state.editor.quotaWarned) {
-        state.editor.quotaWarned = true;
-        toast('Penyimpanan sementara browser penuh, posisi gambar tidak bisa disimpan otomatis. Simpan PDF-nya sekarang agar hasilnya tidak hilang.', 'warning', 8000);
+      el.editorMeta.textContent = `${editor.pageCount} halaman • penyimpanan sementara penuh`;
+      if (!editor.quotaWarned) {
+        editor.quotaWarned = true;
+        toast('Penyimpanan sementara browser penuh, posisi gambar tidak bisa disimpan otomatis. Terapkan atau unduh PDF-nya sekarang agar hasilnya tidak hilang.', 'warning', 8000);
       }
     }
   }
 
-  function restoreEditorOverlays(fileState) {
+  function restoreEditorOverlays(editor) {
     try {
-      const raw = localStorage.getItem(fileState.storageKey);
+      const raw = localStorage.getItem(editor.storageKey);
       if (!raw) return;
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.overlays) && parsed.overlays.length === fileState.pageCount) {
-        fileState.overlays = parsed.overlays.map(page => (Array.isArray(page) ? page : []));
+      if (Array.isArray(parsed.overlays) && parsed.overlays.length === editor.pageCount) {
+        editor.overlays = parsed.overlays.map(page => (Array.isArray(page) ? page : []));
       }
       if (Number.isInteger(parsed.selectedPage)) {
-        state.selectedPage = clamp(parsed.selectedPage, 0, fileState.pageCount - 1);
+        state.selectedPage = clamp(parsed.selectedPage, 0, editor.pageCount - 1);
       }
       state.selectedOverlayId = parsed.selectedOverlayId || null;
     } catch (err) {
@@ -691,58 +916,87 @@
     }
   }
 
-  async function loadEditor(file) {
-    await withBusy(`Memuat ${file.name}…`, async () => {
-      const bytes = copyBytes(await file.arrayBuffer());
-      const preview = await loadPdfPreview(bytes);
-      const firstPage = await preview.getPage(1);
+  function countOverlays(editor) {
+    return editor ? editor.overlays.reduce((total, list) => total + list.length, 0) : 0;
+  }
+
+  // Editor selalu mengikuti dokumen aktif. Dibangun ulang hanya bila dokumennya
+  // berganti atau isinya berubah, supaya overlay yang sedang disusun tidak hilang
+  // ketika berpindah mode bolak-balik.
+  async function syncEditorWithActiveDoc() {
+    const doc = getActiveDoc();
+    if (!doc) {
+      state.editor = null;
+      state.selectedPage = null;
+      state.selectedOverlayId = null;
+      if (pageObserver) pageObserver.disconnect();
+      el.pagesContainer.innerHTML = '';
+      el.editorFileInfo.textContent = 'Belum ada dokumen aktif.';
+      el.editorTitle.textContent = 'Editor Tempel Gambar';
+      el.editorMeta.textContent = 'Pilih dokumen di panel Dokumen untuk mulai.';
+      updateEditorButtons();
+      updateEmptyStates();
+      return;
+    }
+
+    const sig = docSig(doc);
+    if (state.editor && state.editor.docId === doc.id && state.editor.sig === sig) {
+      updateEditorButtons();
+      return;
+    }
+
+    await withBusy(`Menyiapkan ${doc.name}…`, async () => {
+      const firstPage = await doc.preview.getPage(1);
       const firstViewport = firstPage.getViewport({ scale: 1 });
 
       state.editor = {
-        id: uid(),
-        file,
-        bytes,
-        preview,
-        pageCount: preview.numPages,
-        overlays: Array.from({ length: preview.numPages }, () => []),
+        docId: doc.id,
+        sig,
+        pageCount: doc.pageCount,
+        overlays: Array.from({ length: doc.pageCount }, () => []),
         baseAspect: firstViewport.width / firstViewport.height,
-        storageKey: getEditorStorageKey(file),
+        storageKey: getEditorStorageKey(doc),
         quotaWarned: false,
       };
       state.selectedPage = 0;
       state.selectedOverlayId = null;
       restoreEditorOverlays(state.editor);
 
-      el.editorFileInfo.innerHTML = '';
-      el.editorFileInfo.textContent = `${file.name} • ${preview.numPages} halaman • ${formatBytes(file.size)}`;
-      el.editorTitle.textContent = file.name;
-      el.editorMeta.textContent = `${preview.numPages} halaman siap diedit.`;
+      el.editorFileInfo.textContent = `${doc.name} • ${doc.pageCount} halaman • ${formatBytes(doc.size)}`;
+      el.editorTitle.textContent = doc.name;
+      el.editorMeta.textContent = `${doc.pageCount} halaman siap diedit.`;
       buildEditorPages();
       updateEditorButtons();
       updateEmptyStates();
-      toast(`"${file.name}" dimuat, ${preview.numPages} halaman.`, 'success');
     });
   }
 
-  function resetEditor() {
-    state.editor = null;
-    state.selectedPage = null;
+  function clearEditorOverlays() {
+    const editor = state.editor;
+    if (!editor) return;
+    const count = countOverlays(editor);
+    if (!count) {
+      toast('Belum ada gambar yang ditempel.', 'info');
+      return;
+    }
+    editor.overlays = Array.from({ length: editor.pageCount }, () => []);
     state.selectedOverlayId = null;
-    if (pageObserver) pageObserver.disconnect();
-    el.editorPdfInput.value = '';
-    el.imageInput.value = '';
-    el.editorFileInfo.textContent = 'Belum ada file PDF editor.';
-    el.editorTitle.textContent = 'Editor Tempel Gambar';
-    el.editorMeta.textContent = 'Pilih PDF editor untuk mulai.';
-    el.pagesContainer.innerHTML = '';
+    Array.from(el.pagesContainer.querySelectorAll('.page-card')).forEach(node => {
+      renderOverlayLayer(editor, Number(node.dataset.pageIndex), node.querySelector('.overlay-layer'));
+    });
+    persistEditorOverlays();
     updateEditorButtons();
-    updateEmptyStates();
+    toast(`${count} gambar dihapus.`, 'success');
   }
 
   function updateEditorButtons() {
-    const hasEditor = !!state.editor;
+    const editor = state.editor;
+    const hasEditor = !!editor;
     const hasPage = hasEditor && Number.isInteger(state.selectedPage);
+    const hasOverlays = countOverlays(editor) > 0;
+    el.editorApplyBtn.disabled = !hasOverlays;
     el.saveEditorBtn.disabled = !hasEditor;
+    el.clearEditorBtn.disabled = !hasOverlays;
     el.uploadImageLabel.classList.toggle('disabled', !hasPage);
     el.imageInput.disabled = !hasPage;
     el.selectedPageChip.textContent = hasPage ? `Halaman aktif: ${state.selectedPage + 1}` : 'Belum ada halaman aktif';
@@ -752,8 +1006,8 @@
   let pageObserver = null;
 
   function buildEditorPages() {
-    const file = state.editor;
-    if (!file) return;
+    const editor = state.editor;
+    if (!editor) return;
     el.pagesContainer.innerHTML = '';
     if (pageObserver) pageObserver.disconnect();
     pageObserver = new IntersectionObserver(entries => {
@@ -764,7 +1018,7 @@
       });
     }, { rootMargin: '600px 0px' });
 
-    for (let pageIndex = 0; pageIndex < file.pageCount; pageIndex++) {
+    for (let pageIndex = 0; pageIndex < editor.pageCount; pageIndex++) {
       const card = el.pageCardTemplate.content.firstElementChild.cloneNode(true);
       card.dataset.pageIndex = String(pageIndex);
       card.classList.toggle('active', pageIndex === state.selectedPage);
@@ -774,7 +1028,7 @@
       // Ukuran sementara agar tata letak tidak melompat sebelum canvas dirender.
       const canvas = card.querySelector('.page-canvas');
       canvas.width = 620;
-      canvas.height = Math.round(620 / (file.baseAspect || 0.7071));
+      canvas.height = Math.round(620 / (editor.baseAspect || 0.7071));
 
       const wrap = card.querySelector('.page-preview-wrap');
       wrap.addEventListener('click', ev => {
@@ -784,29 +1038,31 @@
 
       card.querySelector('.remove-overlays-btn').addEventListener('click', ev => {
         ev.stopPropagation();
-        const count = file.overlays[pageIndex].length;
+        const count = editor.overlays[pageIndex].length;
         if (!count) { toast('Halaman ini belum ada gambarnya.', 'info'); return; }
-        file.overlays[pageIndex] = [];
+        editor.overlays[pageIndex] = [];
         if (state.selectedPage === pageIndex) state.selectedOverlayId = null;
-        renderOverlayLayer(file, pageIndex, card.querySelector('.overlay-layer'));
+        renderOverlayLayer(editor, pageIndex, card.querySelector('.overlay-layer'));
         persistEditorOverlays();
+        updateEditorButtons();
         toast(`${count} gambar dihapus dari halaman ${pageIndex + 1}.`, 'success');
       });
 
       makeDropzone(wrap, (files, ev) => handleEditorImageDrop(files, pageIndex, ev));
 
       el.pagesContainer.appendChild(card);
-      renderOverlayLayer(file, pageIndex, card.querySelector('.overlay-layer'));
+      renderOverlayLayer(editor, pageIndex, card.querySelector('.overlay-layer'));
       pageObserver.observe(card);
     }
   }
 
   async function renderPageCanvas(card) {
-    const file = state.editor;
-    if (!file || !card.isConnected) return;
+    const editor = state.editor;
+    const doc = getActiveDoc();
+    if (!editor || !doc || !card.isConnected) return;
     const pageIndex = Number(card.dataset.pageIndex);
     try {
-      const page = await file.preview.getPage(pageIndex + 1);
+      const page = await doc.preview.getPage(pageIndex + 1);
       const viewport = page.getViewport({ scale: 1.2 });
       const canvas = card.querySelector('.page-canvas');
       canvas.width = Math.max(1, Math.round(viewport.width));
@@ -844,9 +1100,9 @@
     updateEditorButtons();
   }
 
-  function renderOverlayLayer(file, pageIndex, layer) {
+  function renderOverlayLayer(editor, pageIndex, layer) {
     if (!layer) return;
-    const overlays = file.overlays[pageIndex] || [];
+    const overlays = editor.overlays[pageIndex] || [];
     layer.innerHTML = '';
     overlays.forEach(overlay => {
       const node = document.createElement('div');
@@ -879,7 +1135,7 @@
       handle.title = 'Tarik untuk mengubah ukuran (tahan Shift untuk bebas rasio)';
       node.appendChild(handle);
 
-      enableOverlayInteractions(node, overlay, file, pageIndex, layer);
+      enableOverlayInteractions(node, overlay, editor, pageIndex, layer);
       layer.appendChild(node);
     });
   }
@@ -892,16 +1148,17 @@
   }
 
   function removeOverlay(pageIndex, overlayId) {
-    const file = state.editor;
-    if (!file) return;
-    file.overlays[pageIndex] = file.overlays[pageIndex].filter(item => item.id !== overlayId);
+    const editor = state.editor;
+    if (!editor) return;
+    editor.overlays[pageIndex] = editor.overlays[pageIndex].filter(item => item.id !== overlayId);
     if (state.selectedOverlayId === overlayId) state.selectedOverlayId = null;
     const card = getPageCard(pageIndex);
-    if (card) renderOverlayLayer(file, pageIndex, card.querySelector('.overlay-layer'));
+    if (card) renderOverlayLayer(editor, pageIndex, card.querySelector('.overlay-layer'));
     persistEditorOverlays();
+    updateEditorButtons();
   }
 
-  function enableOverlayInteractions(node, overlay, file, pageIndex, layer) {
+  function enableOverlayInteractions(node, overlay, editor, pageIndex, layer) {
     let mode = null;
     let startX = 0;
     let startY = 0;
@@ -972,18 +1229,18 @@
   }
 
   function findSelectedOverlay() {
-    const file = state.editor;
-    if (!file || !state.selectedOverlayId) return null;
-    for (let pageIndex = 0; pageIndex < file.pageCount; pageIndex++) {
-      const overlay = (file.overlays[pageIndex] || []).find(item => item.id === state.selectedOverlayId);
+    const editor = state.editor;
+    if (!editor || !state.selectedOverlayId) return null;
+    for (let pageIndex = 0; pageIndex < editor.pageCount; pageIndex++) {
+      const overlay = (editor.overlays[pageIndex] || []).find(item => item.id === state.selectedOverlayId);
       if (overlay) return { overlay, pageIndex };
     }
     return null;
   }
 
   async function addImageOverlay(asset, center) {
-    const file = state.editor;
-    if (!file || !Number.isInteger(state.selectedPage)) {
+    const editor = state.editor;
+    if (!editor || !Number.isInteger(state.selectedPage)) {
       toast('Pilih dulu halaman yang mau ditempeli gambar.', 'warning');
       return;
     }
@@ -1016,10 +1273,11 @@
       h,
     };
 
-    file.overlays[pageIndex].push(overlay);
+    editor.overlays[pageIndex].push(overlay);
     state.selectedOverlayId = overlay.id;
-    if (layer) renderOverlayLayer(file, pageIndex, layer);
+    if (layer) renderOverlayLayer(editor, pageIndex, layer);
     persistEditorOverlays();
+    updateEditorButtons();
   }
 
   async function addImageFiles(files, center) {
@@ -1045,6 +1303,9 @@
 
   // Foto yang di-drop diletakkan tepat di titik jatuh kursor.
   async function handleEditorImageDrop(files, pageIndex, ev) {
+    // PDF yang jatuh di area halaman tetap masuk sebagai dokumen baru.
+    const hasPdf = Array.from(files).some(file => file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
+    if (hasPdf) { await handleDocFiles(files); return; }
     state.selectedPage = pageIndex;
     refreshPageSelection();
     let center = null;
@@ -1085,87 +1346,128 @@
     });
   }
 
-  async function exportEditorPdf() {
+  // Menempelkan seluruh overlay ke byte PDF dokumen aktif.
+  async function buildEditorBytes(doc) {
     const editor = state.editor;
-    if (!editor) return;
-    await withBusy('Menggabungkan gambar ke PDF…', async () => {
-      const pdfDoc = await PDFDocument.load(toArrayBufferCopy(editor.bytes));
-      let drawn = 0;
-      for (let pageIndex = 0; pageIndex < editor.pageCount; pageIndex++) {
-        const overlays = editor.overlays[pageIndex] || [];
-        if (!overlays.length) continue;
-        const page = pdfDoc.getPage(pageIndex);
-        const { width, height } = page.getSize();
-        for (const overlay of overlays) {
-          const image = await embedImageInto(pdfDoc, { dataUrl: overlay.dataUrl, mime: overlay.mime || mimeOfDataUrl(overlay.dataUrl) });
-          const drawW = width * overlay.w;
-          const drawH = height * overlay.h;
-          page.drawImage(image, {
-            x: width * overlay.x,
-            y: height - height * overlay.y - drawH,
-            width: drawW,
-            height: drawH,
-          });
-          drawn++;
-        }
+    const pdfDoc = await PDFDocument.load(toArrayBufferCopy(doc.bytes));
+    let drawn = 0;
+    for (let pageIndex = 0; pageIndex < editor.pageCount; pageIndex++) {
+      const overlays = editor.overlays[pageIndex] || [];
+      if (!overlays.length) continue;
+      const page = pdfDoc.getPage(pageIndex);
+      const { width, height } = page.getSize();
+      for (const overlay of overlays) {
+        const image = await embedImageInto(pdfDoc, { dataUrl: overlay.dataUrl, mime: overlay.mime || mimeOfDataUrl(overlay.dataUrl) });
+        const drawW = width * overlay.w;
+        const drawH = height * overlay.h;
+        page.drawImage(image, {
+          x: width * overlay.x,
+          y: height - height * overlay.y - drawH,
+          width: drawW,
+          height: drawH,
+        });
+        drawn++;
       }
-      const bytes = await pdfDoc.save();
-      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), editor.file.name);
-      toast(drawn ? `PDF disimpan dengan ${drawn} gambar tertempel.` : 'PDF disimpan (belum ada gambar tertempel).', 'success');
+    }
+    return { bytes: await pdfDoc.save(), drawn };
+  }
+
+  async function applyEditorToDoc() {
+    const doc = getActiveDoc();
+    if (!doc || !state.editor) return;
+    if (!countOverlays(state.editor)) {
+      toast('Belum ada gambar yang ditempel.', 'info');
+      return;
+    }
+    await withBusy('Menempelkan gambar ke dokumen…', async () => {
+      const { bytes, drawn } = await buildEditorBytes(doc);
+      // Buang simpanan sementara milik versi lama supaya tidak tertempel ulang.
+      try { localStorage.removeItem(state.editor.storageKey); } catch (err) { /* abaikan */ }
+      state.editor = null;
+      await updateDocBytes(doc, bytes, 'Tempel Gambar');
+      toast(`${drawn} gambar ditempel ke "${doc.name}". Lanjutkan ke fitur lain kalau perlu.`, 'success', 5200);
+    });
+  }
+
+  async function exportEditorPdf() {
+    const doc = getActiveDoc();
+    if (!doc || !state.editor) return;
+    await withBusy('Menggabungkan gambar ke PDF…', async () => {
+      const { bytes, drawn } = await buildEditorBytes(doc);
+      downloadBlob(pdfBlob(bytes), doc.name);
+      toast(drawn ? `PDF diunduh dengan ${drawn} gambar tertempel.` : 'PDF diunduh (belum ada gambar tertempel).', 'success');
     });
   }
 
   /* ==========================================================================
      MODE 3 - Gabung PDF (+ foto)
      ========================================================================== */
+  function getMergeRef(entry) {
+    return entry.kind === 'doc' ? getDoc(entry.refId) : state.mergeExtras.find(item => item.id === entry.refId);
+  }
+
+  async function rebuildMergeFromDocs() {
+    state.mergePages = [];
+    state.docs.forEach(doc => {
+      for (let i = 0; i < doc.pageCount; i++) {
+        state.mergePages.push({ uid: uid(), kind: 'doc', refId: doc.id, sourcePageIndex: i, rotation: 0 });
+      }
+    });
+    state.mergeExtras.forEach(extra => {
+      state.mergePages.push({ uid: uid(), kind: 'image', refId: extra.id, sourcePageIndex: 0, rotation: 0 });
+    });
+    await renderMergeGrid();
+    updateMergeButtons();
+  }
+
   async function handleMergeFiles(fileList) {
     const { pdfs, images } = classifyFiles(fileList);
     if (!pdfs.length && !images.length) {
       toast('Tidak ada PDF atau gambar pada pilihan tadi.', 'warning');
       return;
     }
-    await withBusy('Memuat file…', async () => {
-      for (const file of pdfs) {
-        setBusyLabel(`Memuat PDF: ${file.name}`);
-        await tick();
-        try {
-          const bytes = copyBytes(await file.arrayBuffer());
-          const preview = await loadPdfPreview(bytes);
-          const srcDoc = await PDFDocument.load(toArrayBufferCopy(bytes));
-          const sourceId = uid();
-          state.mergeSources.push({
-            id: sourceId, kind: 'pdf', file, bytes, srcDoc, preview,
-            pageCount: preview.numPages, label: file.name,
-          });
-          for (let i = 0; i < preview.numPages; i++) {
-            state.mergePages.push({ uid: uid(), sourceId, sourcePageIndex: i, rotation: 0 });
+
+    // PDF baru masuk ke kumpulan dokumen bersama, lalu halamannya ditambahkan.
+    if (pdfs.length) {
+      await withBusy('Memuat PDF…', async () => {
+        for (const file of pdfs) {
+          setBusyLabel(`Memuat PDF: ${file.name}`);
+          await tick();
+          try {
+            const bytes = copyBytes(await file.arrayBuffer());
+            const doc = await addDoc(file.name, bytes, 'Diunggah');
+            for (let i = 0; i < doc.pageCount; i++) {
+              state.mergePages.push({ uid: uid(), kind: 'doc', refId: doc.id, sourcePageIndex: i, rotation: 0 });
+            }
+          } catch (err) {
+            console.error(err);
+            toast(`Gagal membaca "${file.name}".`, 'error', 6000);
           }
-        } catch (err) {
-          console.error(err);
-          toast(`Gagal membaca "${file.name}".`, 'error', 6000);
         }
-      }
+        renderDocList();
+      });
+    }
 
-      for (const file of images) {
-        setBusyLabel(`Memuat foto: ${file.name}`);
-        await tick();
-        try {
-          const asset = await loadImageAsset(file);
-          const sourceId = uid();
-          state.mergeSources.push({ id: sourceId, kind: 'image', file, asset, pageCount: 1, label: file.name });
-          state.mergePages.push({ uid: uid(), sourceId, sourcePageIndex: 0, rotation: 0 });
-        } catch (err) {
-          toast(err.message, 'error', 6000);
+    if (images.length) {
+      await withBusy('Memuat foto…', async () => {
+        for (const file of images) {
+          setBusyLabel(`Memuat foto: ${file.name}`);
+          await tick();
+          try {
+            const asset = await loadImageAsset(file);
+            const extraId = uid();
+            state.mergeExtras.push({ id: extraId, asset, label: asset.name });
+            state.mergePages.push({ uid: uid(), kind: 'image', refId: extraId, sourcePageIndex: 0, rotation: 0 });
+          } catch (err) {
+            toast(err.message, 'error', 6000);
+          }
         }
-      }
+      });
+    }
 
-      await renderMergeGrid();
-      updateMergeButtons();
-    });
-  }
-
-  function getMergeSource(sourceId) {
-    return state.mergeSources.find(source => source.id === sourceId) || null;
+    state.mergeInitialized = true;
+    await renderMergeGrid();
+    updateMergeButtons();
   }
 
   async function renderMergeGrid() {
@@ -1173,19 +1475,22 @@
     el.mergePagesGrid.innerHTML = '';
     if (!state.mergePages.length) return;
 
+    const token = uid();
+    el.mergePagesGrid.dataset.token = token;
+
     for (let order = 0; order < state.mergePages.length; order++) {
       const entry = state.mergePages[order];
-      const source = getMergeSource(entry.sourceId);
-      if (!source) continue;
+      const ref = getMergeRef(entry);
+      if (!ref) continue;
+      const isImage = entry.kind === 'image';
+      const label = isImage ? ref.label : ref.name;
 
       const card = el.thumbCardTemplate.content.firstElementChild.cloneNode(true);
       card.dataset.uid = entry.uid;
-      card.querySelector('.thumb-badge').textContent = source.kind === 'image'
-        ? source.label
-        : `${source.label} · hal. ${entry.sourcePageIndex + 1}`;
-      card.querySelector('.thumb-badge').title = source.label;
+      card.querySelector('.thumb-badge').textContent = isImage ? label : `${label} · hal. ${entry.sourcePageIndex + 1}`;
+      card.querySelector('.thumb-badge').title = label;
       card.querySelector('.thumb-order').textContent = `#${order + 1}`;
-      card.querySelector('.thumb-note').textContent = source.kind === 'image' ? 'foto' : 'pdf';
+      card.querySelector('.thumb-note').textContent = isImage ? 'foto' : 'pdf';
 
       card.querySelector('.thumb-remove').addEventListener('click', ev => {
         ev.stopPropagation();
@@ -1196,9 +1501,9 @@
 
       card.querySelector('.thumb-rotate').addEventListener('click', async ev => {
         ev.stopPropagation();
-        if (source.kind === 'image') {
+        if (isImage) {
           await withBusy('Memutar foto…', async () => {
-            source.asset = await rotateAsset(source.asset, 90);
+            ref.asset = await rotateAsset(ref.asset, 90);
           });
         } else {
           entry.rotation = ((entry.rotation || 0) + 90) % 360;
@@ -1215,9 +1520,11 @@
       el.mergePagesGrid.appendChild(card);
 
       try {
-        card.querySelector('.thumb-img').src = source.kind === 'image'
-          ? source.asset.dataUrl
-          : await pdfPageThumb(source.id, source.preview, entry.sourcePageIndex, entry.rotation);
+        const src = isImage
+          ? ref.asset.dataUrl
+          : await pdfPageThumb(ref.id, ref.preview, entry.sourcePageIndex, entry.rotation);
+        if (el.mergePagesGrid.dataset.token !== token) return;
+        card.querySelector('.thumb-img').src = src;
       } catch (err) {
         console.error(err);
       }
@@ -1227,49 +1534,72 @@
   function updateMergeButtons() {
     const totalPages = state.mergePages.length;
     el.mergeSaveBtn.disabled = totalPages === 0;
-    if (!state.mergeSources.length) {
-      el.mergeInfo.textContent = 'Belum ada file.';
+    el.mergeApplyBtn.disabled = totalPages === 0;
+    el.mergeRefreshBtn.disabled = state.docs.length === 0 && state.mergeExtras.length === 0;
+
+    if (!totalPages) {
+      el.mergeInfo.textContent = 'Belum ada halaman.';
       el.mergeStatusChip.textContent = 'Menunggu file';
       el.mergeStatusChip.className = 'chip neutral';
       return;
     }
-    const pdfCount = state.mergeSources.filter(source => source.kind === 'pdf').length;
-    const imageCount = state.mergeSources.filter(source => source.kind === 'image').length;
-    el.mergeInfo.textContent = `${pdfCount} PDF • ${imageCount} foto • ${totalPages} halaman siap digabung.`;
+    const docPages = state.mergePages.filter(entry => entry.kind === 'doc').length;
+    const imagePages = totalPages - docPages;
+    el.mergeInfo.textContent = `${docPages} halaman PDF • ${imagePages} foto • total ${totalPages} halaman.`;
     el.mergeStatusChip.textContent = `${totalPages} halaman`;
     el.mergeStatusChip.className = 'chip';
+  }
+
+  async function buildMergedBytes() {
+    const newDoc = await PDFDocument.create();
+    // Tiap dokumen sumber cukup di-load sekali, meski halamannya terpencar.
+    const loaded = new Map();
+    for (let i = 0; i < state.mergePages.length; i++) {
+      const entry = state.mergePages[i];
+      const ref = getMergeRef(entry);
+      if (!ref) continue;
+      setBusyLabel(`Menggabungkan halaman ${i + 1}/${state.mergePages.length}`);
+      if (i % 8 === 0) await tick();
+
+      if (entry.kind === 'doc') {
+        if (!loaded.has(ref.id)) {
+          loaded.set(ref.id, await PDFDocument.load(toArrayBufferCopy(ref.bytes)));
+        }
+        const [copied] = await newDoc.copyPages(loaded.get(ref.id), [entry.sourcePageIndex]);
+        if (entry.rotation) {
+          copied.setRotation(degrees((copied.getRotation().angle + entry.rotation) % 360));
+        }
+        newDoc.addPage(copied);
+      } else {
+        await addImagePage(newDoc, ref.asset, state.mergeImageSize, 'auto', 0);
+      }
+    }
+    return newDoc.save();
+  }
+
+  async function applyMergeAsDoc() {
+    if (!state.mergePages.length) return;
+    await withBusy('Menggabungkan…', async () => {
+      const bytes = await buildMergedBytes();
+      const doc = await addDoc('gabungan.pdf', bytes, 'Gabung PDF');
+      state.activeDocId = doc.id;
+      renderDocList();
+      await refreshModeForDocs();
+      toast(`Dokumen baru "gabungan.pdf" dibuat (${doc.pageCount} halaman) dan dijadikan dokumen aktif.`, 'success', 5200);
+    });
   }
 
   async function exportMergedPdf() {
     if (!state.mergePages.length) return;
     await withBusy('Menggabungkan…', async () => {
-      const newDoc = await PDFDocument.create();
-      for (let i = 0; i < state.mergePages.length; i++) {
-        const entry = state.mergePages[i];
-        const source = getMergeSource(entry.sourceId);
-        if (!source) continue;
-        setBusyLabel(`Menggabungkan halaman ${i + 1}/${state.mergePages.length}`);
-        if (i % 8 === 0) await tick();
-
-        if (source.kind === 'pdf') {
-          const [copied] = await newDoc.copyPages(source.srcDoc, [entry.sourcePageIndex]);
-          if (entry.rotation) {
-            copied.setRotation(degrees((copied.getRotation().angle + entry.rotation) % 360));
-          }
-          newDoc.addPage(copied);
-        } else {
-          await addImagePage(newDoc, source.asset, state.mergeImageSize, 'auto', 0);
-        }
-      }
-      const bytes = await newDoc.save();
-      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'gabungan.pdf');
+      const bytes = await buildMergedBytes();
+      downloadBlob(pdfBlob(bytes), 'gabungan.pdf');
       toast(`${state.mergePages.length} halaman digabung ke gabungan.pdf.`, 'success');
     });
   }
 
-  function resetMerge() {
-    state.mergeSources.forEach(source => clearThumbCache(source.id));
-    state.mergeSources = [];
+  async function resetMerge() {
+    state.mergeExtras = [];
     state.mergePages = [];
     state.dragUid = null;
     el.mergePdfInput.value = '';
@@ -1345,23 +1675,40 @@
   function updateImgButtons() {
     const count = state.imgPages.length;
     el.imgSaveBtn.disabled = count === 0;
+    el.imgApplyBtn.disabled = count === 0;
     el.imgInfo.textContent = count ? `${count} foto siap menjadi ${count} halaman PDF.` : 'Belum ada foto.';
     el.imgStatusChip.textContent = count ? `${count} foto` : 'Menunggu foto';
     el.imgStatusChip.className = count ? 'chip' : 'chip neutral';
   }
 
+  async function buildImagesPdfBytes() {
+    const pdfDoc = await PDFDocument.create();
+    const margin = MARGINS[state.imgOpts.margin] || 0;
+    for (let i = 0; i < state.imgPages.length; i++) {
+      setBusyLabel(`Menyusun halaman ${i + 1}/${state.imgPages.length}`);
+      if (i % 5 === 0) await tick();
+      await addImagePage(pdfDoc, state.imgPages[i].asset, state.imgOpts.paper, state.imgOpts.orient, margin);
+    }
+    return pdfDoc.save();
+  }
+
+  async function applyImagesAsDoc() {
+    if (!state.imgPages.length) return;
+    await withBusy('Membuat PDF…', async () => {
+      const bytes = await buildImagesPdfBytes();
+      const doc = await addDoc('foto-ke-pdf.pdf', bytes, 'Gambar ke PDF');
+      state.activeDocId = doc.id;
+      renderDocList();
+      await refreshModeForDocs();
+      toast(`Dokumen baru "foto-ke-pdf.pdf" dibuat (${doc.pageCount} halaman) dan dijadikan dokumen aktif.`, 'success', 5200);
+    });
+  }
+
   async function exportImagesAsPdf() {
     if (!state.imgPages.length) return;
     await withBusy('Membuat PDF…', async () => {
-      const pdfDoc = await PDFDocument.create();
-      const margin = MARGINS[state.imgOpts.margin] || 0;
-      for (let i = 0; i < state.imgPages.length; i++) {
-        setBusyLabel(`Menyusun halaman ${i + 1}/${state.imgPages.length}`);
-        if (i % 5 === 0) await tick();
-        await addImagePage(pdfDoc, state.imgPages[i].asset, state.imgOpts.paper, state.imgOpts.orient, margin);
-      }
-      const bytes = await pdfDoc.save();
-      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'foto-ke-pdf.pdf');
+      const bytes = await buildImagesPdfBytes();
+      downloadBlob(pdfBlob(bytes), 'foto-ke-pdf.pdf');
       toast(`${state.imgPages.length} foto disimpan ke foto-ke-pdf.pdf.`, 'success');
     });
   }
@@ -1375,12 +1722,125 @@
   }
 
   /* ==========================================================================
+     MODE 5 - Kompres PDF
+     ========================================================================== */
+  // Hanya merapikan struktur berkas. Teks tetap utuh, pengecilan biasanya kecil.
+  async function compressLossless(bytes) {
+    const pdfDoc = await PDFDocument.load(toArrayBufferCopy(bytes));
+    return pdfDoc.save({ useObjectStreams: true });
+  }
+
+  // Setiap halaman dirender ulang menjadi JPEG. Pengecilan besar untuk hasil scan,
+  // tetapi teks berubah jadi gambar.
+  async function compressRaster(doc, preset) {
+    const newDoc = await PDFDocument.create();
+    for (let i = 0; i < doc.pageCount; i++) {
+      setBusyLabel(`Mengompres halaman ${i + 1}/${doc.pageCount}`);
+      await tick();
+
+      const page = await doc.preview.getPage(i + 1);
+      // getViewport() sudah menerapkan rotasi bawaan halaman, sehingga halaman
+      // landscape atau yang diputar tidak terpotong.
+      const viewport = page.getViewport({ scale: preset.scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(viewport.width));
+      canvas.height = Math.max(1, Math.round(viewport.height));
+      const ctx = canvas.getContext('2d');
+      // JPEG tidak punya alpha; tanpa alas putih area transparan menjadi hitam.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const dataUrl = canvas.toDataURL('image/jpeg', preset.quality);
+      // Ukuran halaman dikembalikan ke poin aslinya agar dimensi cetak tidak berubah.
+      const pw = viewport.width / preset.scale;
+      const ph = viewport.height / preset.scale;
+      const newPage = newDoc.addPage([pw, ph]);
+      const embedded = await newDoc.embedJpg(dataUrlToUint8Array(dataUrl));
+      newPage.drawImage(embedded, { x: 0, y: 0, width: pw, height: ph });
+
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+    return newDoc.save({ useObjectStreams: true });
+  }
+
+  function describeCompress(before, after) {
+    const saved = before - after;
+    const percent = before > 0 ? (saved / before) * 100 : 0;
+    return { saved, percent };
+  }
+
+  async function runCompress(applyToDoc) {
+    const doc = getActiveDoc();
+    if (!doc) return;
+    const method = state.compressOpts.method;
+    const preset = COMPRESS_PRESETS[state.compressOpts.quality] || COMPRESS_PRESETS.sedang;
+
+    await withBusy(method === 'raster' ? 'Mengompres (rasterisasi)…' : 'Mengompres…', async () => {
+      const before = doc.size;
+      const bytes = method === 'raster' ? await compressRaster(doc, preset) : await compressLossless(doc.bytes);
+      const after = bytes.length;
+      const { percent } = describeCompress(before, after);
+
+      const methodLabel = method === 'raster' ? `Kuat — ${preset.label}` : 'Aman (lossless)';
+
+      if (after >= before) {
+        el.compressResult.innerHTML = `<b>Tidak ada penghematan.</b><br>Metode: ${methodLabel}<br>`
+          + `Ukuran asli ${formatBytes(before)} → hasil ${formatBytes(after)}.<br>`
+          + `<span class="muted">Dokumen dibiarkan apa adanya.</span>`;
+        toast(method === 'raster'
+          ? 'Hasil rasterisasi malah lebih besar — PDF ini kemungkinan berisi teks murni. Dokumen tidak diubah.'
+          : 'PDF ini sudah efisien, tidak ada yang bisa dihemat. Dokumen tidak diubah.', 'warning', 7000);
+        return;
+      }
+
+      el.compressResult.innerHTML = `<b>Berhasil dikecilkan ${percent.toFixed(1)}%.</b><br>`
+        + `Metode: ${methodLabel}<br>`
+        + `Ukuran asli ${formatBytes(before)} → hasil <b>${formatBytes(after)}</b>.`;
+
+      if (applyToDoc) {
+        await updateDocBytes(doc, bytes, `Kompres ${method === 'raster' ? 'kuat' : 'aman'}`);
+        toast(`"${doc.name}" dikecilkan ${percent.toFixed(1)}% (${formatBytes(before)} → ${formatBytes(after)}).`, 'success', 5200);
+      } else {
+        downloadBlob(pdfBlob(bytes), withSuffix(doc.name, '-kompres'));
+        toast(`Hasil kompresi diunduh (${formatBytes(before)} → ${formatBytes(after)}).`, 'success');
+      }
+    });
+  }
+
+  function renderCompressPanel() {
+    const doc = getActiveDoc();
+    const isRaster = state.compressOpts.method === 'raster';
+    el.compressWarning.classList.toggle('hidden', !isRaster);
+    el.compressQuality.disabled = !isRaster;
+
+    if (!doc) {
+      el.compressTitle.textContent = 'Kompres PDF';
+      el.compressMeta.textContent = 'Pilih dokumen aktif untuk mulai.';
+      el.compressStatusChip.textContent = 'Menunggu dokumen';
+      el.compressStatusChip.className = 'chip neutral';
+      el.compressInfo.textContent = 'Belum ada dokumen aktif.';
+      return;
+    }
+
+    el.compressTitle.textContent = doc.name;
+    el.compressMeta.textContent = `${doc.pageCount} halaman • ukuran sekarang ${formatBytes(doc.size)}`;
+    el.compressStatusChip.textContent = formatBytes(doc.size);
+    el.compressStatusChip.className = 'chip';
+    el.compressInfo.textContent = `${doc.name} • ${doc.pageCount} halaman • ${formatBytes(doc.size)}`;
+  }
+
+  /* ==========================================================================
      Keyboard
      ========================================================================== */
+  const MODE_ORDER = ['page', 'image', 'merge', 'img2pdf', 'compress'];
+
   function saveActiveMode() {
     if (state.mode === 'page') return exportBatchSelected();
     if (state.mode === 'image') return exportEditorPdf();
     if (state.mode === 'merge') return exportMergedPdf();
+    if (state.mode === 'compress') return runCompress(false);
     return exportImagesAsPdf();
   }
 
@@ -1418,8 +1878,8 @@
 
     if (isTypingTarget(ev.target)) return;
 
-    if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && ['1', '2', '3', '4'].indexOf(ev.key) !== -1) {
-      setMode(['page', 'image', 'merge', 'img2pdf'][Number(ev.key) - 1]);
+    if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && ['1', '2', '3', '4', '5'].indexOf(ev.key) !== -1) {
+      setMode(MODE_ORDER[Number(ev.key) - 1]);
       return;
     }
 
@@ -1462,50 +1922,59 @@
   el.helpCloseBtn.addEventListener('click', closeHelp);
   el.helpModal.addEventListener('click', ev => { if (ev.target === el.helpModal) closeHelp(); });
 
-  // Mode 1
-  makeDropzone(el.batchDrop, handleBatchFiles, el.batchPdfInput);
-  makeDropzone(el.batchEmptyDrop, handleBatchFiles, el.batchPdfInput);
-  el.batchPdfInput.addEventListener('change', async ev => {
-    if (ev.target.files && ev.target.files.length) await handleBatchFiles(ev.target.files);
+  // Panel Dokumen bersama
+  makeDropzone(el.docDrop, handleDocFiles, el.docInput);
+  el.docInput.addEventListener('change', async ev => {
+    if (ev.target.files && ev.target.files.length) await handleDocFiles(ev.target.files);
     ev.target.value = '';
   });
+  el.docDownloadAllBtn.addEventListener('click', downloadAllDocsZip);
+  el.docClearBtn.addEventListener('click', clearDocs);
+  el.docUndoBtn.addEventListener('click', async () => {
+    const doc = getActiveDoc();
+    if (!doc || !doc.prevBytes) return;
+    await withBusy('Membatalkan langkah terakhir…', async () => {
+      await undoDoc(doc);
+      toast(`Langkah terakhir pada "${doc.name}" dibatalkan.`, 'success');
+    });
+  });
+
+  // Mode 1 - Page Remover
+  makeDropzone(el.batchEmptyDrop, handleDocFiles, el.docInput);
+  el.batchApplyBtn.addEventListener('click', applyBatchActive);
+  el.batchApplyAllBtn.addEventListener('click', applyBatchAll);
   el.saveBatchSelectedBtn.addEventListener('click', exportBatchSelected);
   el.saveBatchAllBtn.addEventListener('click', exportBatchAll);
-  el.clearBatchBtn.addEventListener('click', resetBatch);
 
-  // Mode 2
-  const pickEditorPdf = files => {
-    const { pdfs } = classifyFiles(files);
-    if (pdfs[0]) loadEditor(pdfs[0]);
-    else toast('Pilih satu file PDF untuk editor.', 'warning');
-  };
-  makeDropzone(el.editorDrop, pickEditorPdf, el.editorPdfInput);
-  makeDropzone(el.editorEmptyDrop, pickEditorPdf, el.editorPdfInput);
-  el.editorPdfInput.addEventListener('change', async ev => {
-    const file = ev.target.files && ev.target.files[0];
-    if (file) await loadEditor(file);
-    ev.target.value = '';
-  });
+  // Mode 2 - Tempel Gambar
+  makeDropzone(el.editorEmptyDrop, handleDocFiles, el.docInput);
   el.imageInput.addEventListener('change', async ev => {
     if (ev.target.files && ev.target.files.length) await addImageFiles(ev.target.files, null);
     ev.target.value = '';
   });
+  el.editorApplyBtn.addEventListener('click', applyEditorToDoc);
   el.saveEditorBtn.addEventListener('click', exportEditorPdf);
-  el.clearEditorBtn.addEventListener('click', resetEditor);
+  el.clearEditorBtn.addEventListener('click', clearEditorOverlays);
   document.addEventListener('paste', handlePaste);
 
-  // Mode 3
+  // Mode 3 - Gabung PDF
   makeDropzone(el.mergeDrop, handleMergeFiles, el.mergePdfInput);
   makeDropzone(el.mergeEmptyDrop, handleMergeFiles, el.mergePdfInput);
   el.mergePdfInput.addEventListener('change', async ev => {
     if (ev.target.files && ev.target.files.length) await handleMergeFiles(ev.target.files);
     ev.target.value = '';
   });
+  el.mergeRefreshBtn.addEventListener('click', async () => {
+    state.mergeInitialized = true;
+    await rebuildMergeFromDocs();
+    toast('Urutan halaman disusun ulang dari daftar dokumen.', 'info');
+  });
   el.mergeImageSize.addEventListener('change', ev => { state.mergeImageSize = ev.target.value; });
+  el.mergeApplyBtn.addEventListener('click', applyMergeAsDoc);
   el.mergeSaveBtn.addEventListener('click', exportMergedPdf);
   el.mergeResetBtn.addEventListener('click', resetMerge);
 
-  // Mode 4
+  // Mode 4 - Gambar ke PDF
   makeDropzone(el.imgDrop, handleImageDocFiles, el.imgDocInput);
   makeDropzone(el.imgEmptyDrop, handleImageDocFiles, el.imgDocInput);
   el.imgDocInput.addEventListener('change', async ev => {
@@ -1518,8 +1987,19 @@
   });
   el.imgOrient.addEventListener('change', ev => { state.imgOpts.orient = ev.target.value; });
   el.imgMargin.addEventListener('change', ev => { state.imgOpts.margin = ev.target.value; });
+  el.imgApplyBtn.addEventListener('click', applyImagesAsDoc);
   el.imgSaveBtn.addEventListener('click', exportImagesAsPdf);
   el.imgResetBtn.addEventListener('click', resetImgDoc);
+
+  // Mode 5 - Kompres PDF
+  makeDropzone(el.compressEmptyDrop, handleDocFiles, el.docInput);
+  el.compressMethod.addEventListener('change', ev => {
+    state.compressOpts.method = ev.target.value;
+    renderCompressPanel();
+  });
+  el.compressQuality.addEventListener('change', ev => { state.compressOpts.quality = ev.target.value; });
+  el.compressApplyBtn.addEventListener('click', () => runCompress(true));
+  el.compressDownloadBtn.addEventListener('click', () => runCompress(false));
 
   document.addEventListener('keydown', handleKeydown);
 
@@ -1527,11 +2007,9 @@
      Init
      ========================================================================== */
   initTheme();
+  renderDocList();
+  updateImgButtons();
+  updateMergeButtons();
+  renderCompressPanel();
   setMode('page');
-  renderBatchFileList();
-  updateBatchButtons();
-  resetEditor();
-  resetMerge();
-  resetImgDoc();
-  updateEmptyStates();
 })();
