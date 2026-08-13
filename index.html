@@ -53,6 +53,18 @@
       <g id="i-reset" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 12a8 8 0 1 0 2.6-5.9" /><path d="M4 4v5h5" />
       </g>
+      <g id="i-compress" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9h6V3" /><path d="M3 3l7 6" /><path d="M20 15h-6v6" /><path d="M21 21l-7-6" />
+      </g>
+      <g id="i-apply" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6 9 17l-5-5" />
+      </g>
+      <g id="i-undo" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 14 4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+      </g>
+      <g id="i-folder" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      </g>
     </defs>
   </svg>
 
@@ -78,6 +90,9 @@
       <button class="tab" type="button" data-mode="img2pdf">
         <svg class="icon" viewBox="0 0 24 24"><use href="#i-stack" /></svg> Gambar ke PDF <span class="tab-key">4</span>
       </button>
+      <button class="tab" type="button" data-mode="compress">
+        <svg class="icon" viewBox="0 0 24 24"><use href="#i-compress" /></svg> Kompres PDF <span class="tab-key">5</span>
+      </button>
     </nav>
 
     <div class="appbar-actions">
@@ -93,62 +108,87 @@
   <div class="layout">
     <!-- ================= SIDEBAR ================= -->
     <aside class="sidebar">
-      <!-- Mode: Page Remover -->
-      <section data-panel="page" class="stack">
-        <div class="panel">
-          <h2>File PDF</h2>
-          <p class="hint" style="margin-top:0">Halaman terakhir setiap file dipindah menjadi halaman pertama. Nama file hasil tetap sama.</p>
-          <div class="dropzone" id="batchDrop" role="button" tabindex="0" style="margin-top:10px">
+      <!-- Panel Dokumen: tanpa data-panel, jadi selalu tampil di semua mode -->
+      <section class="stack">
+        <div class="panel doc-panel">
+          <div class="panel-head">
+            <h2><svg class="icon" viewBox="0 0 24 24"><use href="#i-folder" /></svg> Dokumen</h2>
+            <span id="docCount" class="chip neutral">0 dokumen</span>
+          </div>
+          <p class="hint" style="margin-top:0">Upload sekali di sini, lalu semua mode memakai dokumen yang sama. Hasil tiap fitur bisa langsung dilanjutkan ke fitur berikutnya.</p>
+          <div class="dropzone" id="docDrop" role="button" tabindex="0" style="margin-top:10px">
             <svg class="icon" viewBox="0 0 24 24"><use href="#i-upload" /></svg>
             <strong>Seret PDF ke sini</strong>
             <small>atau klik untuk memilih beberapa file</small>
           </div>
-          <input id="batchPdfInput" class="sr-only" type="file" accept="application/pdf,.pdf" multiple />
+          <input id="docInput" class="sr-only" type="file" accept="application/pdf,.pdf,image/*" multiple />
+
+          <div id="docList" class="file-list empty" style="margin-top:12px">Belum ada dokumen.</div>
+
+          <div id="docStepsWrap" class="doc-steps hidden">
+            <span class="label" style="margin:0">Riwayat dokumen aktif</span>
+            <div id="docSteps" class="muted"></div>
+          </div>
+
+          <div class="actions" style="margin-top:12px">
+            <button id="docUndoBtn" type="button" disabled>
+              <svg class="icon" viewBox="0 0 24 24"><use href="#i-undo" /></svg> Batalkan langkah terakhir
+            </button>
+            <button id="docDownloadAllBtn" type="button" disabled>
+              <svg class="icon" viewBox="0 0 24 24"><use href="#i-zip" /></svg> Unduh semua ke ZIP
+            </button>
+            <button id="docClearBtn" class="ghost-danger" type="button">
+              <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Kosongkan dokumen
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Mode: Page Remover -->
+      <section data-panel="page" class="stack">
+        <div class="panel">
+          <h2>Page Remover</h2>
+          <p class="hint" style="margin-top:0">Halaman terakhir dipindah menjadi halaman pertama. Berlaku pada dokumen aktif.</p>
         </div>
 
         <div class="panel actions">
-          <button id="saveBatchSelectedBtn" class="primary" type="button" disabled>
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Simpan PDF terpilih
+          <button id="batchApplyBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-apply" /></svg> Terapkan ke dokumen aktif
+          </button>
+          <button id="batchApplyAllBtn" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-apply" /></svg> Terapkan ke semua dokumen
+          </button>
+          <button id="saveBatchSelectedBtn" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Unduh hasil dokumen aktif
           </button>
           <button id="saveBatchAllBtn" type="button" disabled>
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-zip" /></svg> Simpan semua ke ZIP
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-zip" /></svg> Unduh semua ke ZIP
           </button>
-          <button id="clearBatchBtn" class="ghost-danger" type="button">
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset daftar
-          </button>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><h2>Daftar file</h2><span id="batchCount" class="chip neutral">0 file</span></div>
-          <div id="batchFileList" class="file-list empty">Belum ada file PDF.</div>
         </div>
       </section>
 
       <!-- Mode: Tempel Gambar -->
       <section data-panel="image" class="stack hidden">
         <div class="panel">
-          <h2>PDF editor</h2>
-          <p class="hint" style="margin-top:0">Pilih 1 PDF, lalu tempel foto atau hasil copy dari Excel ke halaman mana pun.</p>
-          <div class="dropzone" id="editorDrop" role="button" tabindex="0" style="margin-top:10px">
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-upload" /></svg>
-            <strong>Seret 1 file PDF</strong>
-            <small>atau klik untuk memilih</small>
-          </div>
-          <input id="editorPdfInput" class="sr-only" type="file" accept="application/pdf,.pdf" />
+          <h2>Tempel Gambar</h2>
+          <p class="hint" style="margin-top:0">Bekerja pada dokumen aktif. Tempel foto atau hasil copy dari Excel ke halaman mana pun.</p>
         </div>
 
         <div class="panel actions">
-          <button id="saveEditorBtn" class="primary" type="button" disabled>
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Simpan PDF editor
+          <button id="editorApplyBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-apply" /></svg> Terapkan ke dokumen
+          </button>
+          <button id="saveEditorBtn" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Unduh hasil
           </button>
           <button id="clearEditorBtn" class="ghost-danger" type="button">
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset editor
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Hapus semua gambar
           </button>
         </div>
 
         <div class="panel">
           <h2>Info editor</h2>
-          <div id="editorFileInfo" class="muted">Belum ada file PDF editor.</div>
+          <div id="editorFileInfo" class="muted">Belum ada dokumen aktif.</div>
         </div>
       </section>
 
@@ -156,13 +196,17 @@
       <section data-panel="merge" class="stack hidden">
         <div class="panel">
           <h2>Sumber halaman</h2>
-          <p class="hint" style="margin-top:0">PDF dan foto boleh dicampur. Setiap foto menjadi satu halaman.</p>
+          <p class="hint" style="margin-top:0">Halaman diambil dari semua dokumen di panel Dokumen. Foto tambahan boleh diseret ke sini dan menjadi satu halaman.</p>
           <div class="dropzone" id="mergeDrop" role="button" tabindex="0" style="margin-top:10px">
             <svg class="icon" viewBox="0 0 24 24"><use href="#i-upload" /></svg>
             <strong>Seret PDF &amp; foto ke sini</strong>
             <small>atau klik untuk memilih file</small>
           </div>
           <input id="mergePdfInput" class="sr-only" type="file" accept="application/pdf,.pdf,image/*" multiple />
+          <button id="mergeRefreshBtn" type="button" style="width:100%;margin-top:10px">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Susun ulang dari dokumen
+          </button>
+          <p class="hint">Menyusun ulang akan mengembalikan urutan ke kondisi awal semua dokumen.</p>
         </div>
 
         <div class="panel">
@@ -176,8 +220,11 @@
         </div>
 
         <div class="panel actions">
-          <button id="mergeSaveBtn" class="primary" type="button" disabled>
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Gabungkan &amp; simpan
+          <button id="mergeApplyBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-apply" /></svg> Simpan sebagai dokumen baru
+          </button>
+          <button id="mergeSaveBtn" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Unduh hasil gabungan
           </button>
           <button id="mergeResetBtn" class="ghost-danger" type="button">
             <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset
@@ -232,8 +279,11 @@
         </div>
 
         <div class="panel actions">
-          <button id="imgSaveBtn" class="primary" type="button" disabled>
-            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Simpan sebagai PDF
+          <button id="imgApplyBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-apply" /></svg> Simpan sebagai dokumen baru
+          </button>
+          <button id="imgSaveBtn" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Unduh sebagai PDF
           </button>
           <button id="imgResetBtn" class="ghost-danger" type="button">
             <svg class="icon" viewBox="0 0 24 24"><use href="#i-reset" /></svg> Reset
@@ -243,6 +293,42 @@
         <div class="panel">
           <h2>Info</h2>
           <div id="imgInfo" class="muted">Belum ada foto.</div>
+        </div>
+      </section>
+
+      <!-- Mode: Kompres PDF -->
+      <section data-panel="compress" class="stack hidden">
+        <div class="panel">
+          <h2>Kompres PDF</h2>
+          <p class="hint" style="margin-top:0">Memperkecil ukuran dokumen aktif.</p>
+
+          <label class="label" for="compressMethod" style="margin-top:10px">Metode</label>
+          <select id="compressMethod">
+            <option value="lossless">Aman — teks tetap utuh</option>
+            <option value="raster">Kuat — ubah halaman jadi gambar</option>
+          </select>
+
+          <label class="label" for="compressQuality" style="margin-top:10px">Kualitas gambar</label>
+          <select id="compressQuality" disabled>
+            <option value="rendah">Rendah — paling kecil (96 dpi)</option>
+            <option value="sedang" selected>Sedang — seimbang (120 dpi)</option>
+            <option value="tinggi">Tinggi — paling tajam (150 dpi)</option>
+          </select>
+          <p class="hint">Kualitas hanya berlaku untuk metode <b>Kuat</b>.</p>
+        </div>
+
+        <div class="panel actions">
+          <button id="compressApplyBtn" class="primary" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-apply" /></svg> Terapkan ke dokumen
+          </button>
+          <button id="compressDownloadBtn" type="button" disabled>
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg> Unduh hasil kompresi
+          </button>
+        </div>
+
+        <div class="panel">
+          <h2>Info</h2>
+          <div id="compressInfo" class="muted">Belum ada dokumen aktif.</div>
         </div>
       </section>
     </aside>
@@ -264,7 +350,7 @@
         <div class="dropzone dropzone-lg" id="batchEmptyDrop" role="button" tabindex="0">
           <svg class="icon" viewBox="0 0 24 24"><use href="#i-doc" /></svg>
           <strong>Seret file PDF ke sini</strong>
-          <small>Bisa banyak file sekaligus. Simpan satu per satu atau semuanya ke dalam ZIP.</small>
+          <small>File masuk ke daftar Dokumen dan bisa dipakai semua mode.</small>
         </div>
       </section>
 
@@ -293,8 +379,8 @@
 
         <div class="dropzone dropzone-lg" id="editorEmptyDrop" role="button" tabindex="0">
           <svg class="icon" viewBox="0 0 24 24"><use href="#i-image" /></svg>
-          <strong>Seret 1 file PDF untuk mulai mengedit</strong>
-          <small>Preview setiap halaman akan tampil di sini.</small>
+          <strong>Seret file PDF untuk mulai mengedit</strong>
+          <small>Atau pilih salah satu dokumen di panel Dokumen sebelah kiri.</small>
         </div>
       </section>
 
@@ -335,6 +421,38 @@
           <small>Setiap foto menjadi satu halaman PDF.</small>
         </div>
       </section>
+
+      <!-- Mode: Kompres PDF -->
+      <section data-panel="compress" class="stack hidden">
+        <div class="panel toolbar">
+          <div>
+            <h2 id="compressTitle">Kompres PDF</h2>
+            <p id="compressMeta" class="muted" style="margin:0">Pilih dokumen aktif untuk mulai.</p>
+          </div>
+          <span id="compressStatusChip" class="chip neutral">Menunggu dokumen</span>
+        </div>
+
+        <div class="warning hidden" id="compressWarning">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-info" /></svg>
+          <span>Metode <b>Kuat</b> mengubah setiap halaman menjadi gambar. Ukuran turun drastis untuk hasil scan atau foto, tetapi <b>teks tidak lagi bisa diseleksi maupun dicari</b>. Untuk PDF yang isinya teks murni, hasilnya justru bisa lebih besar — bila itu terjadi, dokumen tidak akan diubah.</span>
+        </div>
+
+        <div class="tips">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-info" /></svg>
+          <span>Metode <b>Aman</b> hanya merapikan struktur berkas. Teks tetap utuh, tapi pengecilan biasanya kecil (0&ndash;25%) dan bisa nol kalau PDF sudah efisien.</span>
+        </div>
+
+        <div class="panel" id="compressResultPanel">
+          <h2>Hasil kompresi</h2>
+          <div id="compressResult" class="muted">Belum ada kompresi yang dijalankan.</div>
+        </div>
+
+        <div class="dropzone dropzone-lg" id="compressEmptyDrop" role="button" tabindex="0">
+          <svg class="icon" viewBox="0 0 24 24"><use href="#i-compress" /></svg>
+          <strong>Seret file PDF ke sini</strong>
+          <small>Atau pilih salah satu dokumen di panel Dokumen sebelah kiri.</small>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -354,9 +472,17 @@
         </button>
       </div>
 
-      <h3 style="margin-top:0">Pintasan keyboard</h3>
+      <h3 style="margin-top:0">Alur kerja antar mode</h3>
+      <ul class="plain">
+        <li>Semua mode memakai <b>satu daftar Dokumen</b> yang sama di sebelah kiri. Cukup upload sekali.</li>
+        <li>Tombol <b>Terapkan</b> menyimpan hasil kembali ke dokumen itu, sehingga bisa langsung dilanjutkan ke fitur lain tanpa unduh dan upload ulang. Contoh: Gambar ke PDF → Tempel Gambar → Page Remover → Kompres.</li>
+        <li>Tombol <b>Unduh</b> mengeluarkan file tanpa mengubah dokumen di daftar.</li>
+        <li><b>Batalkan langkah terakhir</b> mengembalikan dokumen aktif ke kondisi sebelum Terapkan yang terakhir (satu langkah saja).</li>
+      </ul>
+
+      <h3>Pintasan keyboard</h3>
       <ul class="shortcut-list">
-        <li><span>Pindah mode</span> <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></span></li>
+        <li><span>Pindah mode</span> <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>5</kbd></span></li>
         <li><span>Simpan hasil mode aktif</span> <kbd>Ctrl</kbd> + <kbd>S</kbd></li>
         <li><span>Tempel gambar ke halaman aktif</span> <span><kbd>Ctrl</kbd> + <kbd>V</kbd></span></li>
         <li><span>Hapus gambar terpilih</span> <kbd>Delete</kbd></li>
@@ -371,9 +497,17 @@
         <li>HEIC/HEIF (foto bawaan iPhone) <b>tidak bisa dibaca browser</b>. Ubah dulu ke JPG sebelum diimpor.</li>
       </ul>
 
+      <h3>Tentang kompresi PDF</h3>
+      <ul class="plain">
+        <li><b>Aman</b> hanya merapikan struktur berkas. Teks tetap bisa diseleksi dan dicari, tapi pengecilan biasanya kecil (0&ndash;25%) dan bisa nol untuk PDF yang sudah efisien.</li>
+        <li><b>Kuat</b> merender ulang setiap halaman menjadi gambar JPEG. Pengecilan bisa 50&ndash;90% untuk hasil scan atau foto, tetapi teks berubah menjadi gambar sehingga tidak bisa diseleksi maupun dicari.</li>
+        <li>Kalau hasil kompresi ternyata lebih besar dari aslinya, dokumen tidak akan diubah dan akan muncul pemberitahuan.</li>
+      </ul>
+
       <h3>Catatan</h3>
       <ul class="plain">
         <li>Semua pemrosesan berjalan lokal di browser, file tidak pernah diunggah ke mana pun.</li>
+        <li>Daftar Dokumen hanya bertahan selama tab terbuka. Menutup atau me-reload halaman akan mengosongkannya, jadi unduh hasil akhirnya sebelum menutup tab.</li>
         <li>Library pdf-lib, pdf.js, dan JSZip masih dimuat dari CDN, jadi browser tetap butuh internet saat halaman dibuka.</li>
         <li>Posisi gambar di mode Tempel Gambar tersimpan sementara di browser. Kalau fotonya sangat besar, penyimpanan sementara bisa penuh dan akan muncul peringatan.</li>
       </ul>
@@ -384,9 +518,14 @@
     <div class="file-item" role="button" tabindex="0">
       <div class="file-item-top">
         <span class="file-name"></span>
-        <button class="file-remove" type="button" title="Hapus dari daftar" aria-label="Hapus dari daftar">
-          <svg class="icon" viewBox="0 0 24 24"><use href="#i-x" /></svg>
-        </button>
+        <span class="file-item-tools">
+          <button class="file-download" type="button" title="Unduh dokumen ini" aria-label="Unduh dokumen ini">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-download" /></svg>
+          </button>
+          <button class="file-remove" type="button" title="Hapus dari daftar" aria-label="Hapus dari daftar">
+            <svg class="icon" viewBox="0 0 24 24"><use href="#i-x" /></svg>
+          </button>
+        </span>
       </div>
       <div class="file-item-bottom">
         <span class="muted file-size"></span>
